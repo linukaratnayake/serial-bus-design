@@ -68,6 +68,10 @@ module init_port_tb;
         .init_split_ack(init_split_ack)
     );
 
+    localparam bit [15:0] TEST_ADDR = 16'hA55A;
+    localparam bit [7:0] TEST_DATA_WR = 8'h3C;
+    localparam bit [7:0] TEST_DATA_RD = 8'h96;
+
     // Clock generation (50 MHz)
     initial begin
         clk = 1'b0;
@@ -207,10 +211,6 @@ module init_port_tb;
         rst_n = 1'b0;
 
         reset_dut();
-
-        localparam bit [15:0] TEST_ADDR = 16'hA55A;
-        localparam bit [7:0] TEST_DATA_WR = 8'h3C;
-        localparam bit [7:0] TEST_DATA_RD = 8'h96;
 
         drive_address(TEST_ADDR);
         drive_write_data(TEST_DATA_WR);

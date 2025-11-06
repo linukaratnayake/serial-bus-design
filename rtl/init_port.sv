@@ -43,7 +43,7 @@ logic [2:0] rx_bit_count;
 
 wire bus_data_sample = bus_data;
 
-assign bus_data = tx_active ? bus_data_drv : 1'bz;
+assign bus_data = bus_data_out_valid ? bus_data_drv : 1'bz;
 
 always_ff @(posedge clk or negedge rst_n) begin
     if (!rst_n) begin
