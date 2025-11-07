@@ -86,7 +86,7 @@ always_ff @(posedge clk or negedge rst_n) begin
         init_data_in_valid <= 1'b0;
 
         if (bus_data_in_valid) begin
-            rx_shift[rx_bit_count] <= bus_data_in;
+            rx_shift[rx_bit_count] = bus_data_in;
 
             if (rx_bit_count == 3'd7) begin
                 init_data_in <= rx_shift;
