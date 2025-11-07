@@ -38,6 +38,10 @@ logic [4:0] tx_bits_remaining;
 logic tx_active;
 logic [7:0] rx_shift;
 logic [2:0] rx_bit_count;
+logic [15:0] pending_addr;
+logic addr_pending;
+logic [7:0] pending_data;
+logic data_pending;
 
 always_ff @(posedge clk or negedge rst_n) begin
     if (!rst_n) begin
@@ -46,8 +50,25 @@ always_ff @(posedge clk or negedge rst_n) begin
         tx_active <= 1'b0;
         bus_data_out <= 1'b0;
         bus_data_out_valid <= 1'b0;
+        pending_addr <= '0;
+        addr_pending <= 1'b0;
+        pending_data <= '0;
+        data_pending <= 1'b0;
+        bus_mode <= 1'b0;
     end else begin
         bus_data_out_valid <= 1'b0;
+
+        if (arbiter_grant && init_req) begin
+            if (init_addr_out_valid) begin
+                pending_addr <= init_addr_out;
+                addr_pending <= 1'b1;
+            end
+
+            if (init_data_out_valid) begin
+                pending_data <= init_data_out;
+                data_pending <= 1'b1;
+            end
+        end
 
         if (tx_active) begin
             bus_data_out <= tx_shift[0];
@@ -60,17 +81,21 @@ always_ff @(posedge clk or negedge rst_n) begin
             end else begin
                 tx_bits_remaining <= tx_bits_remaining - 5'd1;
             end
-        end else if (arbiter_grant && init_req) begin
-            if (init_addr_out_valid) begin
-                tx_shift <= init_addr_out;
+        end else begin
+            if (addr_pending) begin
+                tx_shift <= pending_addr;
                 tx_bits_remaining <= 5'd16;
                 tx_active <= 1'b1;
                 bus_mode <= 1'b0;
-            end else if (init_data_out_valid) begin
-                tx_shift <= {8'd0, init_data_out};
+                addr_pending <= 1'b0;
+            end else if (data_pending) begin
+                tx_shift <= {8'd0, pending_data};
                 tx_bits_remaining <= 5'd8;
                 tx_active <= 1'b1;
                 bus_mode <= 1'b1;
+                data_pending <= 1'b0;
+            end else begin
+                bus_mode <= 1'b0;
             end
         end
     end
