@@ -35,10 +35,12 @@ module init_port_tb;
     logic bus_init_rw;
     logic init_split_ack;
 
-    wire bus_data;
+    tri bus_data;
+    wire dut_bus_drive_value;
 
     // Tri-state hook up between TB and DUT
     assign bus_data = tb_drive_en ? tb_drive_value : 1'bz;
+    assign bus_data = bus_data_out_valid ? dut_bus_drive_value : 1'bz;
 
     init_port dut (
         .clk(clk),
@@ -55,7 +57,8 @@ module init_port_tb;
         .target_split(target_split),
         .target_ack(target_ack),
         .bus_data_in_valid(bus_data_in_valid),
-        .bus_data(bus_data),
+        .bus_data_in(bus_data),
+        .bus_data_out(dut_bus_drive_value),
         .init_grant(init_grant),
         .init_data_in(init_data_in),
         .init_data_in_valid(init_data_in_valid),
