@@ -9,7 +9,6 @@ module init_port(
     input logic init_addr_out_valid,
     input logic init_rw, // 1 for write, 0 for read
     input logic init_ready,
-    input logic init_bus_mode,
     input logic target_split,
     input logic target_ack,
     input logic bus_data_in_valid,
@@ -29,7 +28,6 @@ module init_port(
 
 assign init_grant = arbiter_grant;
 assign arbiter_req = init_req;
-assign bus_mode = init_bus_mode;
 assign bus_init_rw = init_rw;
 assign bus_init_ready = init_ready;
 assign init_ack = target_ack;
@@ -63,14 +61,16 @@ always_ff @(posedge clk or negedge rst_n) begin
                 tx_bits_remaining <= tx_bits_remaining - 5'd1;
             end
         end else if (arbiter_grant && init_req) begin
-            if (!init_bus_mode && init_addr_out_valid) begin
+            if (init_addr_out_valid) begin
                 tx_shift <= init_addr_out;
                 tx_bits_remaining <= 5'd16;
                 tx_active <= 1'b1;
-            end else if (init_bus_mode && init_data_out_valid) begin
+                bus_mode <= 1'b0;
+            end else if (init_data_out_valid) begin
                 tx_shift <= {8'd0, init_data_out};
                 tx_bits_remaining <= 5'd8;
                 tx_active <= 1'b1;
+                bus_mode <= 1'b1;
             end
         end
     end

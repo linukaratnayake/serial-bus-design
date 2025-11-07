@@ -14,7 +14,6 @@ module init_port_tb;
     logic init_addr_out_valid;
     logic init_rw;
     logic init_ready;
-    logic init_bus_mode;
     logic target_split;
     logic target_ack;
     logic bus_data_in_valid;
@@ -53,7 +52,6 @@ module init_port_tb;
         .init_addr_out_valid(init_addr_out_valid),
         .init_rw(init_rw),
         .init_ready(init_ready),
-        .init_bus_mode(init_bus_mode),
         .target_split(target_split),
         .target_ack(target_ack),
         .bus_data_in_valid(bus_data_in_valid),
@@ -106,7 +104,6 @@ module init_port_tb;
         captured = '0;
         idx = 0;
 
-        init_bus_mode = 1'b0;
         init_addr_out = addr;
         init_addr_out_valid = 1'b1;
         init_req = 1'b1;
@@ -140,7 +137,6 @@ module init_port_tb;
         captured = '0;
         idx = 0;
 
-        init_bus_mode = 1'b1;
         init_data_out = data;
         init_data_out_valid = 1'b1;
         init_rw = 1'b1;
@@ -168,7 +164,6 @@ module init_port_tb;
     task automatic drive_read_data(input bit [7:0] data);
         init_req = 1'b0;
         arbiter_grant = 1'b0;
-        init_bus_mode = 1'b1;
         init_rw = 1'b0;
 
         repeat (2) @(posedge clk);
@@ -205,7 +200,6 @@ module init_port_tb;
         init_addr_out_valid = 1'b0;
         init_rw = 1'b0;
         init_ready = 1'b1;
-        init_bus_mode = 1'b0;
         target_split = 1'b0;
         target_ack = 1'b0;
         bus_data_in_valid = 1'b0;
@@ -219,7 +213,7 @@ module init_port_tb;
         drive_write_data(TEST_DATA_WR);
 
         @(posedge clk);
-        if (init_grant !== arbiter_grant || arbiter_req !== init_req || bus_mode !== init_bus_mode ||
+        if (init_grant !== arbiter_grant || arbiter_req !== init_req ||
             bus_init_ready !== init_ready || bus_init_rw !== init_rw) begin
             $error("[%0t] Control pass-through checks failed", $time);
         end
