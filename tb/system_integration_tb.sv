@@ -44,9 +44,19 @@ module system_integration_tb;
     logic bus_split_ack;
     logic bus_target_ack;
 
+    // Arbiter split-channel wires
+    logic arbiter_split_grant;
+    logic arbiter_split_req_sig;
+
     // Stimulus driving the target core side
     logic [7:0] target_data_out_tb;
     logic target_data_out_valid_tb;
+    logic target_split_ack_tb;
+    logic target_ack_tb;
+    logic split_req_tb;
+
+    // Arbiter monitoring
+    logic [1:0] arbiter_sel;
 
     // Address decoder outputs
     logic target_1_valid;
@@ -57,8 +67,8 @@ module system_integration_tb;
     // Constants for the scenario (choose address in Slave 3 range 1000 xxxx xxxx xxxx)
     localparam bit [15:0] TARGET3_ADDR = 16'h800A;
     localparam bit [7:0] TARGET_WRITE_DATA = 8'h5C;
-    localparam bit [15:0] TARGET3_READ_ADDR = 16'h8F44;
-    localparam bit [7:0] TARGET_READ_RESPONSE = 8'hA7;
+    localparam bit [15:0] TARGET3_READ_ADDR = TARGET3_ADDR;
+    localparam bit [7:0] TARGET_READ_RESPONSE = TARGET_WRITE_DATA;
 
     // Instantiate initiator port
     init_port u_init_port (
@@ -93,14 +103,14 @@ module system_integration_tb;
     split_target_port u_split_target_port (
         .clk(clk),
         .rst_n(rst_n),
-        .split_req(1'b0),
-        .arbiter_grant(1'b1),
+        .split_req(split_req_tb),
+        .arbiter_grant(arbiter_split_grant),
         .target_data_out(target_data_out_tb),
         .target_data_out_valid(target_data_out_valid_tb),
         .target_rw(bus_init_rw),
         .target_ready(bus_init_ready),
-        .target_split_ack(1'b0),
-        .target_ack(1'b0),
+        .target_split_ack(target_split_ack_tb),
+        .target_ack(target_ack_tb),
         .bus_data_in_valid(bus_serial_valid),
         .bus_data_in(bus_serial),
         .bus_mode(bus_mode),
@@ -111,7 +121,7 @@ module system_integration_tb;
         .target_addr_in(target_addr_in),
         .target_addr_in_valid(target_addr_in_valid),
         .bus_data_out_valid(bus_data_out_valid_from_target),
-        .arbiter_split_req(),
+        .arbiter_split_req(arbiter_split_req_sig),
         .split_ack(),
         .bus_target_ready(bus_target_ready),
         .bus_target_rw(bus_target_rw),
@@ -139,10 +149,11 @@ module system_integration_tb;
         .rst_n(rst_n),
         .req_i_1(arbiter_req),
         .req_i_2(1'b0),
-        .req_split(1'b0),
+        .req_split(arbiter_split_req_sig),
         .grant_i_1(arbiter_grant),
         .grant_i_2(),
-        .grant_split()
+        .grant_split(arbiter_split_grant),
+        .sel(arbiter_sel)
     );
 
     // Clock generation (100 MHz)
@@ -216,6 +227,9 @@ module system_integration_tb;
         target_ack = 1'b0;
         target_data_out_tb = '0;
         target_data_out_valid_tb = 1'b0;
+    target_split_ack_tb = 1'b0;
+    target_ack_tb = 1'b0;
+    split_req_tb = 1'b0;
 
         reset_dut();
 
@@ -282,11 +296,29 @@ module system_integration_tb;
             $error("Target reported data valid during read command");
 
         @(posedge clk);
+        target_split_ack_tb <= 1'b1;
+        @(posedge clk);
+        target_split_ack_tb <= 1'b0;
+
+        wait (bus_split_ack);
+
+        repeat (2) @(posedge clk);
+        split_req_tb <= 1'b1;
+        wait (arbiter_split_req_sig);
+
+        wait (arbiter_split_grant);
+        @(posedge clk);
+        split_req_tb <= 1'b0;
+
         target_data_out_tb <= TARGET_READ_RESPONSE;
         target_data_out_valid_tb <= 1'b1;
         @(posedge clk);
         target_data_out_valid_tb <= 1'b0;
         target_data_out_tb <= '0;
+
+        target_ack_tb <= 1'b1;
+        @(posedge clk);
+        target_ack_tb <= 1'b0;
 
         wait (init_data_in_valid);
         if (init_data_in !== TARGET_READ_RESPONSE)
