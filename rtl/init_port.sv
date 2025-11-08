@@ -44,7 +44,7 @@ logic [7:0] pending_data;
 logic data_pending;
 logic addr_is_read;
 logic expect_read_data;
-logic read_data_done;
+logic rx_byte_ready;
 
 always_ff @(posedge clk or negedge rst_n) begin
     if (!rst_n) begin
@@ -63,7 +63,7 @@ always_ff @(posedge clk or negedge rst_n) begin
     end else begin
         bus_data_out_valid <= 1'b0;
 
-        if (read_data_done)
+        if (rx_byte_ready)
             expect_read_data <= 1'b0;
 
         if (arbiter_grant && init_req) begin
@@ -79,30 +79,27 @@ always_ff @(posedge clk or negedge rst_n) begin
             end
         end
 
-        if (!rst_n) begin
+        if (tx_active) begin
             bus_data_out <= tx_shift[0];
             bus_data_out_valid <= 1'b1;
             tx_shift <= {1'b0, tx_shift[15:1]};
-            init_data_in_valid <= 1'b0;
-            read_data_done <= 1'b0;
+
+            if (tx_bits_remaining == 5'd1) begin
                 tx_active <= 1'b0;
                 tx_bits_remaining <= '0;
-            read_data_done <= 1'b0;
             end else begin
                 tx_bits_remaining <= tx_bits_remaining - 5'd1;
-                logic [7:0] next_rx_shift;
-                next_rx_shift = rx_shift;
-                next_rx_shift[rx_bit_count] = bus_data_in;
+            end
         end else begin
             if (addr_pending) begin
-                    init_data_in <= next_rx_shift;
+                tx_shift <= pending_addr;
                 tx_bits_remaining <= 5'd16;
                 tx_active <= 1'b1;
                 bus_mode <= 1'b0;
-                    read_data_done <= 1'b1;
+                addr_pending <= 1'b0;
                 expect_read_data <= addr_is_read;
-                    rx_bit_count <= rx_bit_count + 3'd1;
-                    rx_shift <= next_rx_shift;
+            end else if (data_pending) begin
+                tx_shift <= {8'd0, pending_data};
                 tx_bits_remaining <= 5'd8;
                 tx_active <= 1'b1;
                 bus_mode <= 1'b1;
@@ -121,21 +118,26 @@ always_ff @(posedge clk or negedge rst_n) begin
         rx_bit_count <= '0;
         init_data_in <= '0;
         init_data_in_valid <= 1'b0;
-        expect_read_data <= 1'b0;
+        rx_byte_ready <= 1'b0;
     end else begin
         init_data_in_valid <= 1'b0;
+        rx_byte_ready <= 1'b0;
 
+        // Only sample the shared bus when the initiator is not actively driving.
         if (bus_data_in_valid && !tx_active) begin
-            rx_shift[rx_bit_count] = bus_data_in;
+            logic [7:0] rx_next;
+            rx_next = rx_shift;
+            rx_next[rx_bit_count] = bus_data_in;
 
             if (rx_bit_count == 3'd7) begin
-                init_data_in <= rx_shift;
+                init_data_in <= rx_next;
                 init_data_in_valid <= 1'b1;
                 rx_bit_count <= 3'd0;
                 rx_shift <= '0;
-                expect_read_data <= 1'b0;
+                rx_byte_ready <= 1'b1;
             end else begin
                 rx_bit_count <= rx_bit_count + 3'd1;
+                rx_shift <= rx_next;
             end
         end
     end
