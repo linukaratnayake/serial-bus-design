@@ -6,7 +6,8 @@ module arbiter(
     input logic req_split,
     output logic grant_i_1,
     output logic grant_i_2,
-    output logic grant_split
+    output logic grant_split,
+    output logic [1:0] sel
 );
     typedef enum logic [1:0] {
         IDLE,
@@ -57,11 +58,20 @@ module arbiter(
         grant_i_1 = 0;
         grant_i_2 = 0;
         grant_split = 0;
+        sel = 2'b00;
 
         case (current_state)
-            GRANT_1: grant_i_1 = 1;
-            GRANT_2: grant_i_2 = 1;
-            GRANT_SPLIT: grant_split = 1;
+            GRANT_1: begin
+                grant_i_1 = 1;
+                sel = 2'b01;
+            end
+            GRANT_2: begin
+                grant_i_2 = 1;
+                sel = 2'b10;
+            end
+            GRANT_SPLIT: begin
+                grant_split = 1;
+            end
         endcase
     end
 endmodule
