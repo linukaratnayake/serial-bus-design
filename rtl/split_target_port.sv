@@ -11,10 +11,13 @@ module split_target_port(
     input logic target_ack,
     input logic bus_data_in_valid,
     input logic bus_data_in,
+    input logic bus_mode, // 1 for data, 0 for address
     output logic bus_data_out,
     output logic split_grant,
     output logic [7:0] target_data_in,
     output logic target_data_in_valid,
+    output logic [15:0] target_addr_in,
+    output logic target_addr_in_valid,
     output logic bus_data_out_valid,
     output logic arbiter_split_req,
     output logic split_ack,
@@ -34,8 +37,14 @@ assign bus_split_ack = target_split_ack;
 logic [7:0] tx_shift;
 logic [3:0] tx_bits_remaining;
 logic tx_active;
-logic [7:0] rx_shift;
-logic [2:0] rx_bit_count;
+logic [15:0] rx_addr_shift;
+logic [4:0] addr_bit_count;
+logic [15:0] addr_buffer;
+logic addr_pending;
+logic [7:0] rx_data_shift;
+logic [2:0] data_bit_count;
+logic [7:0] data_buffer;
+logic data_pending;
 
 always_ff @(posedge clk or negedge rst_n) begin
     if (!rst_n) begin
@@ -68,23 +77,60 @@ end
 
 always_ff @(posedge clk or negedge rst_n) begin
     if (!rst_n) begin
-        rx_shift <= '0;
-        rx_bit_count <= '0;
+        rx_addr_shift <= '0;
+        addr_bit_count <= '0;
+        addr_buffer <= '0;
+        addr_pending <= 1'b0;
+        rx_data_shift <= '0;
+        data_bit_count <= '0;
+        data_buffer <= '0;
+        data_pending <= 1'b0;
+        target_addr_in <= '0;
+        target_addr_in_valid <= 1'b0;
         target_data_in <= '0;
         target_data_in_valid <= 1'b0;
     end else begin
+        target_addr_in_valid <= 1'b0;
         target_data_in_valid <= 1'b0;
 
-        if (bus_data_in_valid && !tx_active) begin
-            rx_shift[rx_bit_count] = bus_data_in;
+        if (addr_pending && data_pending) begin
+            target_addr_in <= addr_buffer;
+            target_data_in <= data_buffer;
+            target_addr_in_valid <= 1'b1;
+            target_data_in_valid <= 1'b1;
+            addr_pending <= 1'b0;
+            data_pending <= 1'b0;
+        end
 
-            if (rx_bit_count == 3'd7) begin
-                target_data_in <= rx_shift;
-                target_data_in_valid <= 1'b1;
-                rx_bit_count <= 3'd0;
-                rx_shift <= '0;
-            end else begin
-                rx_bit_count <= rx_bit_count + 3'd1;
+        if (bus_data_in_valid && !tx_active) begin
+            if (!bus_mode && !addr_pending) begin
+                logic [15:0] updated_addr;
+                updated_addr = rx_addr_shift;
+                updated_addr[addr_bit_count] = bus_data_in;
+
+                if (addr_bit_count == 5'd15) begin
+                    addr_buffer <= updated_addr;
+                    addr_pending <= 1'b1;
+                    rx_addr_shift <= '0;
+                    addr_bit_count <= 5'd0;
+                end else begin
+                    rx_addr_shift <= updated_addr;
+                    addr_bit_count <= addr_bit_count + 5'd1;
+                end
+            end else if (bus_mode && !data_pending) begin
+                logic [7:0] updated_data;
+                updated_data = rx_data_shift;
+                updated_data[data_bit_count] = bus_data_in;
+
+                if (data_bit_count == 3'd7) begin
+                    data_buffer <= updated_data;
+                    data_pending <= 1'b1;
+                    rx_data_shift <= '0;
+                    data_bit_count <= 3'd0;
+                end else begin
+                    rx_data_shift <= updated_data;
+                    data_bit_count <= data_bit_count + 3'd1;
+                end
             end
         end
     end
