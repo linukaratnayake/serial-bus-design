@@ -41,6 +41,10 @@ module addr_decoder(
     logic [1:0] held_sel;
     logic data_phase_active;
     logic [3:0] data_bit_count;
+    logic [2:0] pending_valids;
+    logic [1:0] pending_sel;
+    logic pending_load;
+    logic clear_pending;
 
     assign sel = split ? 2'b10 : held_sel;
     assign target_1_valid = split ? 1'b0 : held_valids[0];
@@ -56,15 +60,31 @@ module addr_decoder(
             held_sel <= 2'b00;
             data_phase_active <= 1'b0;
             data_bit_count <= 4'd0;
+            pending_valids <= 3'b000;
+            pending_sel <= 2'b00;
+            pending_load <= 1'b0;
+            clear_pending <= 1'b0;
         end else begin
+            if (pending_load) begin
+                held_valids <= pending_valids;
+                held_sel <= pending_sel;
+                hold_active <= |pending_valids;
+                pending_load <= 1'b0;
+                clear_pending <= 1'b0;
+            end else if (clear_pending) begin
+                held_valids <= 3'b000;
+                held_sel <= 2'b00;
+                hold_active <= 1'b0;
+                clear_pending <= 1'b0;
+                pending_load <= 1'b0;
+            end
+
             if (bus_mode && hold_active && bus_data_in_valid) begin
                 logic [3:0] next_count;
                 next_count = data_phase_active ? (data_bit_count + 4'd1) : 4'd1;
 
                 if (next_count == 4'd8) begin
-                    hold_active <= 1'b0;
-                    held_valids <= 3'b000;
-                    held_sel <= 2'b00;
+                    clear_pending <= 1'b1;
                     data_phase_active <= 1'b0;
                     data_bit_count <= 4'd0;
                 end else begin
@@ -77,21 +97,20 @@ module addr_decoder(
             end
 
             if (!bus_mode && bus_data_in_valid && !hold_active) begin
-                logic [15:0] updated_addr;
-                updated_addr = addr_shift;
-                updated_addr[addr_bit_count] = bus_data_in;
-                addr_shift <= updated_addr;
+                logic [15:0] addr_next;
+                addr_next = {bus_data_in, addr_shift[15:1]};
+                addr_shift <= addr_next;
 
                 if (addr_bit_count == 5'd15) begin
                     logic [2:0] decoded_valids;
                     logic [1:0] decoded_sel;
 
-                    decoded_valids = decode_target(updated_addr);
+                    decoded_valids = decode_target(addr_next);
                     decoded_sel = encode_sel(decoded_valids);
 
-                    held_valids <= decoded_valids;
-                    held_sel <= decoded_sel;
-                    hold_active <= |decoded_valids;
+                    pending_valids <= decoded_valids;
+                    pending_sel <= decoded_sel;
+                    pending_load <= 1'b1;
                     data_phase_active <= 1'b0;
                     data_bit_count <= 4'd0;
                     addr_bit_count <= 5'd0;
