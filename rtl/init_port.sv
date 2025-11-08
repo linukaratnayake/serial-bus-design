@@ -42,6 +42,9 @@ logic [15:0] pending_addr;
 logic addr_pending;
 logic [7:0] pending_data;
 logic data_pending;
+logic addr_is_read;
+logic expect_read_data;
+logic read_data_done;
 
 always_ff @(posedge clk or negedge rst_n) begin
     if (!rst_n) begin
@@ -54,14 +57,20 @@ always_ff @(posedge clk or negedge rst_n) begin
         addr_pending <= 1'b0;
         pending_data <= '0;
         data_pending <= 1'b0;
+        addr_is_read <= 1'b0;
+        expect_read_data <= 1'b0;
         bus_mode <= 1'b0;
     end else begin
         bus_data_out_valid <= 1'b0;
+
+        if (read_data_done)
+            expect_read_data <= 1'b0;
 
         if (arbiter_grant && init_req) begin
             if (init_addr_out_valid) begin
                 pending_addr <= init_addr_out;
                 addr_pending <= 1'b1;
+                addr_is_read <= (init_rw == 1'b0);
             end
 
             if (init_data_out_valid) begin
@@ -70,32 +79,37 @@ always_ff @(posedge clk or negedge rst_n) begin
             end
         end
 
-        if (tx_active) begin
+        if (!rst_n) begin
             bus_data_out <= tx_shift[0];
             bus_data_out_valid <= 1'b1;
             tx_shift <= {1'b0, tx_shift[15:1]};
-
-            if (tx_bits_remaining == 5'd1) begin
+            init_data_in_valid <= 1'b0;
+            read_data_done <= 1'b0;
                 tx_active <= 1'b0;
                 tx_bits_remaining <= '0;
+            read_data_done <= 1'b0;
             end else begin
                 tx_bits_remaining <= tx_bits_remaining - 5'd1;
-            end
+                logic [7:0] next_rx_shift;
+                next_rx_shift = rx_shift;
+                next_rx_shift[rx_bit_count] = bus_data_in;
         end else begin
             if (addr_pending) begin
-                tx_shift <= pending_addr;
+                    init_data_in <= next_rx_shift;
                 tx_bits_remaining <= 5'd16;
                 tx_active <= 1'b1;
                 bus_mode <= 1'b0;
-                addr_pending <= 1'b0;
-            end else if (data_pending) begin
-                tx_shift <= {8'd0, pending_data};
+                    read_data_done <= 1'b1;
+                expect_read_data <= addr_is_read;
+                    rx_bit_count <= rx_bit_count + 3'd1;
+                    rx_shift <= next_rx_shift;
                 tx_bits_remaining <= 5'd8;
                 tx_active <= 1'b1;
                 bus_mode <= 1'b1;
                 data_pending <= 1'b0;
+                expect_read_data <= 1'b0;
             end else begin
-                bus_mode <= 1'b0;
+                bus_mode <= expect_read_data ? 1'b1 : 1'b0;
             end
         end
     end
@@ -107,6 +121,7 @@ always_ff @(posedge clk or negedge rst_n) begin
         rx_bit_count <= '0;
         init_data_in <= '0;
         init_data_in_valid <= 1'b0;
+        expect_read_data <= 1'b0;
     end else begin
         init_data_in_valid <= 1'b0;
 
@@ -118,6 +133,7 @@ always_ff @(posedge clk or negedge rst_n) begin
                 init_data_in_valid <= 1'b1;
                 rx_bit_count <= 3'd0;
                 rx_shift <= '0;
+                expect_read_data <= 1'b0;
             end else begin
                 rx_bit_count <= rx_bit_count + 3'd1;
             end

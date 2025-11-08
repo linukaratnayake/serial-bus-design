@@ -72,10 +72,10 @@ module system_integration_tb;
         .init_addr_out_valid(init_addr_out_valid),
         .init_rw(init_rw),
         .init_ready(init_ready),
-    .target_split(target_split),
-    .target_ack(target_ack),
-    .bus_data_in_valid(bus_data_out_valid_from_target),
-    .bus_data_in(bus_data_out_from_target),
+        .target_split(target_split),
+        .target_ack(target_ack),
+        .bus_data_in_valid(bus_data_out_valid_from_target),
+        .bus_data_in(bus_data_out_from_target),
         .bus_data_out(bus_serial),
         .init_grant(init_grant),
         .init_data_in(init_data_in),
@@ -93,10 +93,10 @@ module system_integration_tb;
     split_target_port u_split_target_port (
         .clk(clk),
         .rst_n(rst_n),
-    .split_req(1'b0),
-    .arbiter_grant(1'b1),
-    .target_data_out(target_data_out_tb),
-    .target_data_out_valid(target_data_out_valid_tb),
+        .split_req(1'b0),
+        .arbiter_grant(1'b1),
+        .target_data_out(target_data_out_tb),
+        .target_data_out_valid(target_data_out_valid_tb),
         .target_rw(bus_init_rw),
         .target_ready(bus_init_ready),
         .target_split_ack(1'b0),
@@ -214,8 +214,8 @@ module system_integration_tb;
         init_ready = 1'b1;
         target_split = 1'b0;
         target_ack = 1'b0;
-    target_data_out_tb = '0;
-    target_data_out_valid_tb = 1'b0;
+        target_data_out_tb = '0;
+        target_data_out_valid_tb = 1'b0;
 
         reset_dut();
 
@@ -275,8 +275,13 @@ module system_integration_tb;
         @(posedge clk);
         init_addr_out_valid <= 1'b0;
 
-        // Allow some cycles for bus turnaround then drive target response
-        repeat (3) @(posedge clk);
+        wait (target_addr_in_valid && (bus_target_rw == 1'b0));
+        if (target_addr_in !== TARGET3_READ_ADDR)
+            $error("Target captured wrong read address. Expected %h, got %h", TARGET3_READ_ADDR, target_addr_in);
+        if (target_data_in_valid)
+            $error("Target reported data valid during read command");
+
+        @(posedge clk);
         target_data_out_tb <= TARGET_READ_RESPONSE;
         target_data_out_valid_tb <= 1'b1;
         @(posedge clk);
@@ -304,6 +309,8 @@ module system_integration_tb;
 
         if (init_data_in_valid_count != 1)
             $error("Initiator should have seen exactly one data-valid pulse during read, observed %0d", init_data_in_valid_count);
+
+        in_read_phase = 1'b0;
 
         $display("[%0t] System integration test completed.", $time);
         $finish;

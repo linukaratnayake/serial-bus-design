@@ -41,6 +41,7 @@ logic [15:0] rx_addr_shift;
 logic [4:0] addr_bit_count;
 logic [15:0] addr_buffer;
 logic addr_pending;
+logic addr_expect_data;
 logic [7:0] rx_data_shift;
 logic [2:0] data_bit_count;
 logic [7:0] data_buffer;
@@ -81,6 +82,7 @@ always_ff @(posedge clk or negedge rst_n) begin
         addr_bit_count <= '0;
         addr_buffer <= '0;
         addr_pending <= 1'b0;
+        addr_expect_data <= 1'b0;
         rx_data_shift <= '0;
         data_bit_count <= '0;
         data_buffer <= '0;
@@ -93,13 +95,21 @@ always_ff @(posedge clk or negedge rst_n) begin
         target_addr_in_valid <= 1'b0;
         target_data_in_valid <= 1'b0;
 
-        if (addr_pending && data_pending) begin
+        if (addr_pending && !addr_expect_data) begin
+            target_addr_in <= addr_buffer;
+            target_data_in <= '0;
+            target_addr_in_valid <= 1'b1;
+            addr_pending <= 1'b0;
+            addr_expect_data <= 1'b0;
+        end else if (addr_pending && addr_expect_data && data_pending) begin
             target_addr_in <= addr_buffer;
             target_data_in <= data_buffer;
             target_addr_in_valid <= 1'b1;
             target_data_in_valid <= 1'b1;
             addr_pending <= 1'b0;
+            addr_expect_data <= 1'b0;
             data_pending <= 1'b0;
+            data_buffer <= '0;
         end
 
         if (bus_data_in_valid && !tx_active) begin
@@ -111,13 +121,14 @@ always_ff @(posedge clk or negedge rst_n) begin
                 if (addr_bit_count == 5'd15) begin
                     addr_buffer <= updated_addr;
                     addr_pending <= 1'b1;
+                    addr_expect_data <= target_rw;
                     rx_addr_shift <= '0;
                     addr_bit_count <= 5'd0;
                 end else begin
                     rx_addr_shift <= updated_addr;
                     addr_bit_count <= addr_bit_count + 5'd1;
                 end
-            end else if (bus_mode && !data_pending) begin
+            end else if (bus_mode && addr_pending && addr_expect_data && !data_pending) begin
                 logic [7:0] updated_data;
                 updated_data = rx_data_shift;
                 updated_data[data_bit_count] = bus_data_in;
