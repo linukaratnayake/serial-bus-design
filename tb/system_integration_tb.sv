@@ -32,17 +32,21 @@ module system_integration_tb;
     // Connections to arbiter
     logic arbiter_grant;
 
-    // Target port outputs
+    // Target port facing signals
     logic bus_data_out_from_target;
+    logic bus_data_out_valid_from_target;
     logic [7:0] target_data_in;
     logic target_data_in_valid;
     logic [15:0] target_addr_in;
     logic target_addr_in_valid;
-    logic bus_data_out_valid_from_target;
     logic bus_target_ready;
     logic bus_target_rw;
     logic bus_split_ack;
     logic bus_target_ack;
+
+    // Stimulus driving the target core side
+    logic [7:0] target_data_out_tb;
+    logic target_data_out_valid_tb;
 
     // Address decoder outputs
     logic target_1_valid;
@@ -53,6 +57,8 @@ module system_integration_tb;
     // Constants for the scenario (choose address in Slave 3 range 1000 xxxx xxxx xxxx)
     localparam bit [15:0] TARGET3_ADDR = 16'h800A;
     localparam bit [7:0] TARGET_WRITE_DATA = 8'h5C;
+    localparam bit [15:0] TARGET3_READ_ADDR = 16'h8F44;
+    localparam bit [7:0] TARGET_READ_RESPONSE = 8'hA7;
 
     // Instantiate initiator port
     init_port u_init_port (
@@ -66,10 +72,10 @@ module system_integration_tb;
         .init_addr_out_valid(init_addr_out_valid),
         .init_rw(init_rw),
         .init_ready(init_ready),
-        .target_split(target_split),
-        .target_ack(target_ack),
-        .bus_data_in_valid(1'b0),
-        .bus_data_in(1'b0),
+    .target_split(target_split),
+    .target_ack(target_ack),
+    .bus_data_in_valid(bus_data_out_valid_from_target),
+    .bus_data_in(bus_data_out_from_target),
         .bus_data_out(bus_serial),
         .init_grant(init_grant),
         .init_data_in(init_data_in),
@@ -87,10 +93,10 @@ module system_integration_tb;
     split_target_port u_split_target_port (
         .clk(clk),
         .rst_n(rst_n),
-        .split_req(1'b0),
-        .arbiter_grant(1'b1),
-        .target_data_out('0),
-        .target_data_out_valid(1'b0),
+    .split_req(1'b0),
+    .arbiter_grant(1'b1),
+    .target_data_out(target_data_out_tb),
+    .target_data_out_valid(target_data_out_valid_tb),
         .target_rw(bus_init_rw),
         .target_ready(bus_init_ready),
         .target_split_ack(1'b0),
@@ -154,18 +160,30 @@ module system_integration_tb;
         end
     endtask
 
-    bit decoder_target3_seen;
+    bit decoder_target3_seen_write;
+    bit decoder_target3_seen_read;
     bit decoder_wrong_target_seen;
+    bit in_read_phase;
+    int init_data_in_valid_count;
 
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            decoder_target3_seen <= 1'b0;
+            decoder_target3_seen_write <= 1'b0;
+            decoder_target3_seen_read <= 1'b0;
             decoder_wrong_target_seen <= 1'b0;
+            in_read_phase <= 1'b0;
+            init_data_in_valid_count <= 0;
         end else begin
-            if (target_3_valid && sel == 2'b10)
-                decoder_target3_seen <= 1'b1;
+            if (target_3_valid && sel == 2'b10) begin
+                if (in_read_phase)
+                    decoder_target3_seen_read <= 1'b1;
+                else
+                    decoder_target3_seen_write <= 1'b1;
+            end
             if (target_1_valid || target_2_valid || (target_3_valid && sel != 2'b10))
                 decoder_wrong_target_seen <= 1'b1;
+            if (init_data_in_valid)
+                init_data_in_valid_count <= init_data_in_valid_count + 1;
         end
     end
 
@@ -176,6 +194,12 @@ module system_integration_tb;
                      bus_target_rw ? "WRITE" : "READ",
                      target_addr_in,
                      target_data_in);
+        end
+    end
+
+    always @(posedge clk) begin
+        if (init_data_in_valid) begin
+            $display("[%0t] Initiator received data %h", $time, init_data_in);
         end
     end
 
@@ -190,6 +214,8 @@ module system_integration_tb;
         init_ready = 1'b1;
         target_split = 1'b0;
         target_ack = 1'b0;
+    target_data_out_tb = '0;
+    target_data_out_valid_tb = 1'b0;
 
         reset_dut();
 
@@ -215,17 +241,16 @@ module system_integration_tb;
         @(posedge clk);
         init_req <= 1'b0;
 
-        // Give modules time to settle
-        repeat (5) @(posedge clk);
+        repeat (2) @(posedge clk);
 
-        // Checks
+        // Checks for write transaction
         if (target_addr_in !== TARGET3_ADDR)
             $error("Target captured wrong address. Expected %h, got %h", TARGET3_ADDR, target_addr_in);
 
         if (target_data_in !== TARGET_WRITE_DATA)
             $error("Target captured wrong data. Expected %h, got %h", TARGET_WRITE_DATA, target_data_in);
 
-        if (!decoder_target3_seen)
+        if (!decoder_target3_seen_write)
             $error("Address decoder never asserted target 3 valid with correct selection");
 
         if (decoder_wrong_target_seen)
@@ -233,6 +258,52 @@ module system_integration_tb;
 
         if (bus_target_rw !== init_rw)
             $error("Target observed RW=%b but initiator drove %b", bus_target_rw, init_rw);
+
+        // Begin read phase
+        in_read_phase = 1'b1;
+        init_data_in_valid_count = 0;
+        init_rw = 1'b0; // read transaction
+
+        @(posedge clk);
+        init_addr_out <= TARGET3_READ_ADDR;
+        init_addr_out_valid <= 1'b1;
+        init_data_out_valid <= 1'b0;
+        init_req <= 1'b1;
+
+        wait (arbiter_grant === 1'b1);
+
+        @(posedge clk);
+        init_addr_out_valid <= 1'b0;
+
+        // Allow some cycles for bus turnaround then drive target response
+        repeat (3) @(posedge clk);
+        target_data_out_tb <= TARGET_READ_RESPONSE;
+        target_data_out_valid_tb <= 1'b1;
+        @(posedge clk);
+        target_data_out_valid_tb <= 1'b0;
+        target_data_out_tb <= '0;
+
+        wait (init_data_in_valid);
+        if (init_data_in !== TARGET_READ_RESPONSE)
+            $error("Initiator captured wrong read data. Expected %h, got %h", TARGET_READ_RESPONSE, init_data_in);
+
+        @(posedge clk);
+        init_req <= 1'b0;
+
+        // Give modules time to settle after read
+        repeat (5) @(posedge clk);
+
+        if (!decoder_target3_seen_read)
+            $error("Address decoder did not indicate target 3 during read phase");
+
+        if (decoder_wrong_target_seen)
+            $error("Address decoder asserted an unexpected target selection");
+
+        if (bus_target_rw !== init_rw)
+            $error("Target observed RW=%b but initiator drove %b", bus_target_rw, init_rw);
+
+        if (init_data_in_valid_count != 1)
+            $error("Initiator should have seen exactly one data-valid pulse during read, observed %0d", init_data_in_valid_count);
 
         $display("[%0t] System integration test completed.", $time);
         $finish;
