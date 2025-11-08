@@ -33,6 +33,7 @@ assign bus_target_rw = target_rw;
 assign bus_target_ready = target_ready;
 assign bus_target_ack = target_ack;
 assign bus_split_ack = target_split_ack;
+assign split_ack = target_split_ack;
 
 logic [7:0] tx_shift;
 logic [3:0] tx_bits_remaining;
