@@ -4,7 +4,7 @@ module target_integration_tb;
     logic clk;
     logic rst_n;
 
-    localparam bit [15:0] WRITE_ADDR = 16'h4A32;
+    localparam bit [15:0] WRITE_ADDR = 16'h0532;
     localparam bit [7:0] WRITE_DATA = 8'h9E;
     localparam bit [15:0] READ_ADDR  = WRITE_ADDR;
 
@@ -33,7 +33,7 @@ module target_integration_tb;
     int read_ack_count;
 
     target #(
-        .MEM_WIDTH(11)
+        .INTERNAL_ADDR_BITS(11)
     ) u_target (
         .clk(clk),
         .rst_n(rst_n),

@@ -4,7 +4,6 @@ module addr_decoder(
     input logic bus_data_in,
     input logic bus_data_in_valid,
     input logic bus_mode, // 1 for data, 0 for address
-    input logic split, // 1 indicates split supported target is replying
     output logic target_1_valid,
     output logic target_2_valid,
     output logic target_3_valid,
@@ -46,10 +45,10 @@ module addr_decoder(
     logic pending_load;
     logic clear_pending;
 
-    assign sel = split ? 2'b10 : held_sel;
-    assign target_1_valid = split ? 1'b0 : held_valids[0];
-    assign target_2_valid = split ? 1'b0 : held_valids[1];
-    assign target_3_valid = split ? hold_active : held_valids[2];
+    assign sel = held_sel;
+    assign target_1_valid = held_valids[0];
+    assign target_2_valid = held_valids[1];
+    assign target_3_valid = held_valids[2];
 
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin

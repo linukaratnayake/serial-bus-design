@@ -41,7 +41,7 @@ module split_target_integration_tb;
     int split_ack_count;
 
     split_target #(
-        .MEM_WIDTH(12),
+        .INTERNAL_ADDR_BITS(12),
         .READ_LATENCY(READ_DELAY_CYCLES)
     ) u_split_target (
         .clk(clk),

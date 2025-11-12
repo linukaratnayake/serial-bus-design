@@ -7,7 +7,6 @@ module addr_decoder_tb;
     logic bus_data_in;
     logic bus_data_in_valid;
     logic bus_mode;
-    logic split;
 
     logic target_1_valid;
     logic target_2_valid;
@@ -24,7 +23,6 @@ module addr_decoder_tb;
         .bus_data_in(bus_data_in),
         .bus_data_in_valid(bus_data_in_valid),
         .bus_mode(bus_mode),
-        .split(split),
         .target_1_valid(target_1_valid),
         .target_2_valid(target_2_valid),
         .target_3_valid(target_3_valid),
@@ -42,7 +40,6 @@ module addr_decoder_tb;
             bus_data_in = 1'b0;
             bus_data_in_valid = 1'b0;
             bus_mode = 1'b0;
-            split = 1'b0;
             repeat (4) @(posedge clk);
             rst_n = 1'b1;
             @(posedge clk);
@@ -100,17 +97,11 @@ module addr_decoder_tb;
 
         send_address(ADDR_S3);
         check_targets(1'b0, 1'b0, 1'b1, 2'b10);
-        split = 1'b1;
-        check_targets(1'b0, 1'b0, 1'b1, 2'b10);
-        split = 1'b0;
         send_data_byte(8'h5A);
         check_targets(1'b0, 1'b0, 1'b0, 2'b00);
 
         send_address(ADDR_S1);
         check_targets(1'b1, 1'b0, 1'b0, 2'b00);
-        split = 1'b1;
-        check_targets(1'b0, 1'b0, 1'b1, 2'b10);
-        split = 1'b0;
         send_data_byte(8'hC3);
         check_targets(1'b0, 1'b0, 1'b0, 2'b00);
 

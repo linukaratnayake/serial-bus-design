@@ -122,29 +122,29 @@ always_ff @(posedge clk or negedge rst_n) begin
                     state <= S_WRITE_HOLD;
             end
             S_WRITE_HOLD: begin
-                init_req_r <= 1'b0;
+                init_req_r <= 1'b1;
                 init_addr_out_valid_r <= 1'b0;
                 init_data_out_valid_r <= 1'b0;
 
-                if (init_ack) begin
+                if (init_ack || init_split_ack) begin
+                    init_req_r <= 1'b0;
                     addr_sent <= 1'b0;
                     data_sent <= 1'b0;
                     init_rw_r <= 1'b0;
                     state <= S_READ_REQ;
                 end else if (!init_grant) begin
-                    addr_sent <= 1'b0;
-                    data_sent <= 1'b0;
                     state <= S_WRITE_WAIT_ACK;
                 end
             end
             S_WRITE_WAIT_ACK: begin
-                init_req_r <= 1'b0;
+                init_req_r <= 1'b1;
                 init_addr_out_valid_r <= 1'b0;
                 init_data_out_valid_r <= 1'b0;
                 addr_sent <= 1'b0;
                 data_sent <= 1'b0;
 
-                if (init_ack) begin
+                if (init_ack || init_split_ack) begin
+                    init_req_r <= 1'b0;
                     init_rw_r <= 1'b0;
                     state <= S_READ_REQ;
                 end
@@ -170,22 +170,25 @@ always_ff @(posedge clk or negedge rst_n) begin
                 addr_sent <= addr_done;
 
                 if (addr_done) begin
-                    init_req_r <= 1'b0;
                     state <= S_READ_WAIT;
                 end
             end
             S_READ_WAIT: begin
-                init_req_r <= 1'b0;
                 init_addr_out_valid_r <= 1'b0;
                 init_data_out_valid_r <= 1'b0;
                 addr_sent <= 1'b0;
                 data_sent <= 1'b0;
 
-                if (init_split_ack)
+                if (init_split_ack) begin
                     split_active <= 1'b1;
+                    init_req_r <= 1'b0;
+                end
 
-                if (split_active && init_ack)
-                    split_resume_ack <= 1'b1;
+                if (init_ack) begin
+                    init_req_r <= 1'b0;
+                    if (split_active)
+                        split_resume_ack <= 1'b1;
+                end
 
                 if (init_data_in_valid && (!split_active || init_ack || split_resume_ack)) begin
                     read_mem <= init_data_in;

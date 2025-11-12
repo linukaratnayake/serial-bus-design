@@ -1,5 +1,5 @@
 module target #(
-    parameter int MEM_WIDTH = 8
+    parameter int INTERNAL_ADDR_BITS = 8
 )(
     input  logic clk,
     input  logic rst_n,
@@ -14,7 +14,7 @@ module target #(
     output logic target_ready
 );
 
-    localparam int ADDR_WIDTH = (MEM_WIDTH > 0) ? MEM_WIDTH : 1;
+    localparam int ADDR_WIDTH = (INTERNAL_ADDR_BITS > 0) ? INTERNAL_ADDR_BITS : 1;
     localparam int MEM_DEPTH = 1 << ADDR_WIDTH;
 
     logic [7:0] mem [0:MEM_DEPTH-1];
