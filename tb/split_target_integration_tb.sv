@@ -33,6 +33,7 @@ module split_target_integration_tb;
     logic [15:0] target_addr_in;
     logic target_addr_in_valid;
     logic arbiter_split_req;
+    logic decoder_valid;
 
     logic [7:0] read_back_serial;
     int write_ack_count;
@@ -40,7 +41,7 @@ module split_target_integration_tb;
     int split_ack_count;
 
     split_target #(
-        .MEM_DEPTH(256),
+        .MEM_WIDTH(12),
         .READ_LATENCY(READ_DELAY_CYCLES)
     ) u_split_target (
         .clk(clk),
@@ -70,6 +71,7 @@ module split_target_integration_tb;
         .target_ready(target_ready),
         .target_split_ack(target_split_ack),
         .target_ack(target_ack),
+        .decoder_valid(decoder_valid),
         .bus_data_in_valid(bus_data_in_valid),
         .bus_data_in(bus_data_in),
         .bus_mode(bus_mode),
@@ -201,11 +203,13 @@ module split_target_integration_tb;
         bus_mode = 1'b0;
         target_rw = 1'b0;
         read_back_serial = '0;
+        decoder_valid = 1'b0;
 
         repeat (5) @(posedge clk);
         rst_n = 1'b1;
         @(posedge clk);
 
+        decoder_valid = 1'b1;
         issue_write(WRITE_ADDR, WRITE_DATA);
         wait (write_ack_count == 1);
         @(posedge clk);
@@ -214,6 +218,8 @@ module split_target_integration_tb;
         wait (split_ack_count == 1);
         capture_read(read_back_serial);
         wait (read_ack_count == 1);
+
+        decoder_valid = 1'b0;
 
         if (read_back_serial !== WRITE_DATA) begin
             $error("Read data mismatch. Expected %h, got %h", WRITE_DATA, read_back_serial);

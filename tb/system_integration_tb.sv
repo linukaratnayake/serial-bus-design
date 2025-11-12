@@ -101,6 +101,7 @@ module system_integration_tb;
         .target_ready(bus_init_ready),
         .target_split_ack(1'b0),
         .target_ack(1'b0),
+        .decoder_valid(target_3_valid),
         .bus_data_in_valid(bus_serial_valid),
         .bus_data_in(bus_serial),
         .bus_mode(bus_mode),

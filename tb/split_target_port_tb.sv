@@ -32,6 +32,7 @@ module split_target_port_tb;
     logic bus_target_rw;
     logic bus_split_ack;
     logic bus_target_ack;
+    logic decoder_valid;
 
     localparam bit [7:0] TEST_WRITE_DATA = 8'hC5;
     localparam bit [7:0] TEST_READ_DATA  = 8'h2F;
@@ -48,6 +49,7 @@ module split_target_port_tb;
         .target_ready(target_ready),
         .target_split_ack(target_split_ack),
         .target_ack(target_ack),
+        .decoder_valid(decoder_valid),
         .bus_data_in_valid(bus_data_in_valid),
         .bus_data_in(bus_data_in),
         .bus_mode(bus_mode),
@@ -197,6 +199,7 @@ module split_target_port_tb;
         bus_data_in = 1'b0;
         bus_mode = 1'b0;
         rst_n = 1'b0;
+        decoder_valid = 1'b1;
 
         reset_dut();
 

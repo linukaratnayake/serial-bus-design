@@ -6,6 +6,7 @@ module target_port(
     input  logic target_rw, // 1 for write, 0 for read
     input  logic target_ready,
     input  logic target_ack,
+    input  logic decoder_valid,
     input  logic bus_data_in_valid,
     input  logic bus_data_in,
     input  logic bus_mode, // 1 for data, 0 for address
@@ -110,8 +111,15 @@ module target_port(
 
                     if (addr_bit_count == 5'd15) begin
                         addr_buffer <= updated_addr;
-                        addr_pending <= 1'b1;
-                        addr_expect_data <= target_rw;
+                        if (decoder_valid) begin
+                            addr_pending <= 1'b1;
+                            addr_expect_data <= target_rw;
+                        end else begin
+                            addr_pending <= 1'b0;
+                            addr_expect_data <= 1'b0;
+                            data_pending <= 1'b0;
+                            data_buffer <= '0;
+                        end
                         rx_addr_shift <= '0;
                         addr_bit_count <= 5'd0;
                     end else begin

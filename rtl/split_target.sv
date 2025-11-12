@@ -1,5 +1,5 @@
 module split_target #(
-    parameter int MEM_DEPTH = 256,
+    parameter int MEM_WIDTH = 8,
     parameter int READ_LATENCY = 4
 )(
     input  logic clk,
@@ -18,7 +18,8 @@ module split_target #(
     output logic target_ready
 );
 
-    localparam int ADDR_WIDTH = (MEM_DEPTH > 1) ? $clog2(MEM_DEPTH) : 1;
+    localparam int ADDR_WIDTH = (MEM_WIDTH > 0) ? MEM_WIDTH : 1;
+    localparam int MEM_DEPTH = 1 << ADDR_WIDTH;
     localparam int LATENCY_WIDTH = (READ_LATENCY > 0) ? $clog2(READ_LATENCY + 1) : 1;
 
     logic [7:0] mem [0:MEM_DEPTH-1];

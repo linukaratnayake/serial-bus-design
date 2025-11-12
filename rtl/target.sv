@@ -1,5 +1,5 @@
 module target #(
-    parameter int MEM_DEPTH = 256
+    parameter int MEM_WIDTH = 8
 )(
     input  logic clk,
     input  logic rst_n,
@@ -14,7 +14,8 @@ module target #(
     output logic target_ready
 );
 
-    localparam int ADDR_WIDTH = (MEM_DEPTH > 1) ? $clog2(MEM_DEPTH) : 1;
+    localparam int ADDR_WIDTH = (MEM_WIDTH > 0) ? MEM_WIDTH : 1;
+    localparam int MEM_DEPTH = 1 << ADDR_WIDTH;
 
     logic [7:0] mem [0:MEM_DEPTH-1];
     logic [ADDR_WIDTH-1:0] pending_addr_idx;

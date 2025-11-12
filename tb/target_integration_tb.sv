@@ -26,13 +26,14 @@ module target_integration_tb;
     logic bus_target_ready;
     logic bus_target_rw;
     logic bus_target_ack;
+    logic decoder_valid;
 
     logic [7:0] read_back_serial;
     int write_ack_count;
     int read_ack_count;
 
     target #(
-        .MEM_DEPTH(256)
+        .MEM_WIDTH(11)
     ) u_target (
         .clk(clk),
         .rst_n(rst_n),
@@ -55,6 +56,7 @@ module target_integration_tb;
         .target_rw(target_rw),
         .target_ready(target_ready),
         .target_ack(target_ack),
+        .decoder_valid(decoder_valid),
         .bus_data_in_valid(bus_data_in_valid),
         .bus_data_in(bus_data_in),
         .bus_mode(bus_mode),
@@ -154,11 +156,13 @@ module target_integration_tb;
         bus_mode = 1'b0;
         target_rw = 1'b0;
         read_back_serial = '0;
+        decoder_valid = 1'b0;
 
         repeat (5) @(posedge clk);
         rst_n = 1'b1;
         @(posedge clk);
 
+        decoder_valid = 1'b1;
         issue_write(WRITE_ADDR, WRITE_DATA);
         wait (write_ack_count == 1);
         target_rw <= 1'b0;
@@ -167,6 +171,8 @@ module target_integration_tb;
         issue_read(READ_ADDR);
         capture_read(read_back_serial);
         wait (read_ack_count == 1);
+
+        decoder_valid = 1'b0;
 
         if (read_back_serial !== WRITE_DATA) begin
             $error("Read data mismatch. Expected %h, got %h", WRITE_DATA, read_back_serial);
