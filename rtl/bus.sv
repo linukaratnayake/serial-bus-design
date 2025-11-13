@@ -346,6 +346,16 @@ module bus (
 
     always_comb begin
         backward_sel = decoder_sel;
+
+        // Prefer the target that currently has return activity so acknowledgements and data
+        // continue to flow even after the decoder releases the address phase.
+        if (target3_bus_target_ack || target3_bus_split_ack || target3_bus_data_out_valid)
+            backward_sel = 2'b10;
+        else if (target2_bus_target_ack || target2_bus_data_out_valid)
+            backward_sel = 2'b01;
+        else if (target1_bus_target_ack || target1_bus_data_out_valid)
+            backward_sel = 2'b00;
+
         if (arbiter_grant_split)
             backward_sel = 2'b10;
 
@@ -378,17 +388,28 @@ module bus (
     // Remember which initiator issued the outstanding split transaction so the return path can be steered correctly.
     logic split_owner;
     logic split_owner_valid;
+    logic split_waiting_for_return;
+
+    // Split activity stays asserted while the split target is returning data or handshakes.
+    logic split_activity;
+    assign split_activity = target3_bus_data_out_valid | target3_bus_target_ack | target3_bus_split_ack;
 
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             split_owner <= 1'b0;
             split_owner_valid <= 1'b0;
+            split_waiting_for_return <= 1'b0;
         end else begin
-            if (backward_split_ack && (arbiter_grant_i1 || arbiter_grant_i2)) begin
+            if (target3_addr_in_valid_int && !split_target_rw_int) begin
                 split_owner <= arbiter_grant_i2;
                 split_owner_valid <= 1'b1;
-            end else if (arbiter_grant_split && backward_target_ack) begin
-                split_owner_valid <= 1'b0;
+                split_waiting_for_return <= 1'b1;
+            end else begin
+                if (split_waiting_for_return && target3_bus_data_out_valid)
+                    split_waiting_for_return <= 1'b0;
+
+                if (split_owner_valid && !arbiter_grant_split && !split_activity && !split_waiting_for_return)
+                    split_owner_valid <= 1'b0;
             end
         end
     end
@@ -401,11 +422,9 @@ module bus (
         init0_receive_back = 1'b0;
         init1_receive_back = 1'b0;
 
-        if (arbiter_grant_split) begin
-            if (split_owner_valid) begin
-                init0_receive_back = (split_owner == 1'b0);
-                init1_receive_back = (split_owner == 1'b1);
-            end
+        if (split_owner_valid && (arbiter_grant_split || split_activity)) begin
+            init0_receive_back = (split_owner == 1'b0);
+            init1_receive_back = (split_owner == 1'b1);
         end else begin
             init0_receive_back = arbiter_grant_i1;
             init1_receive_back = arbiter_grant_i2;
@@ -421,5 +440,20 @@ module bus (
     assign init1_bus_data_in_valid = init1_receive_back ? backward_data_valid : 1'b0;
     assign init1_target_ack_in = init1_receive_back ? backward_target_ack : 1'b0;
     assign init1_target_split_in = init1_receive_back ? backward_split_ack : 1'b0;
+
+`ifdef BUS_DEBUG
+    always @(posedge clk) begin
+        if (backward_data_valid)
+            $display("[%0t] backward_sel=%0d data_bit=%0b", $time, backward_sel, backward_data_bit);
+        if (init0_bus_data_in_valid)
+            $display("[%0t] init0_bus_data_in bit=%0b", $time, init0_bus_data_in);
+        if (init1_bus_data_in_valid)
+            $display("[%0t] init1_bus_data_in bit=%0b", $time, init1_bus_data_in);
+        if (init0_target_ack_in)
+            $display("[%0t] init0_target_ack_in", $time);
+        if (init1_target_ack_in)
+            $display("[%0t] init1_target_ack_in", $time);
+    end
+`endif
 
 endmodule

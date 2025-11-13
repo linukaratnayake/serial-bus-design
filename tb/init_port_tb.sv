@@ -199,13 +199,15 @@ module init_port_tb;
         input int ack_timing_cycles, // <0: ack before data, 0: ack immediately after data bits, >0: ack after data by N cycles
         input string scenario_name
     );
+        int ack_count_before;
+        bit ack_seen_pre_data;
+
         init_req = 1'b0;
         arbiter_grant = 1'b0;
         init_rw = 1'b0;
 
         repeat (2) @(posedge clk);
 
-        int ack_count_before;
         ack_count_before = init_ack_pulse_count;
 
         // Ack asserted before data
@@ -215,7 +217,6 @@ module init_port_tb;
             target_ack = 1'b0;
         end
 
-        bit ack_seen_pre_data;
         ack_seen_pre_data = 1'b0;
 
         for (int i = 0; i < 8; i++) begin
