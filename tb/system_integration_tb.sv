@@ -182,7 +182,6 @@ module system_integration_tb;
         .bus_data_in(bus_serial),
         .bus_data_in_valid(bus_serial_valid),
         .bus_mode(bus_mode),
-        .bus_rw(bus_init_rw),
         .target_1_valid(target_1_valid),
         .target_2_valid(target_2_valid),
         .target_3_valid(target_3_valid),

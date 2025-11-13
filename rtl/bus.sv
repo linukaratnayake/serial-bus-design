@@ -308,7 +308,6 @@ module bus (
         .bus_data_in(forward_data_bit),
         .bus_data_in_valid(forward_data_valid),
         .bus_mode(forward_bus_mode),
-        .bus_rw(forward_bus_rw),
         .target_1_valid(target_1_valid),
         .target_2_valid(target_2_valid),
         .target_3_valid(target_3_valid),
@@ -441,5 +440,20 @@ module bus (
     assign init1_bus_data_in_valid = init1_receive_back ? backward_data_valid : 1'b0;
     assign init1_target_ack_in = init1_receive_back ? backward_target_ack : 1'b0;
     assign init1_target_split_in = init1_receive_back ? backward_split_ack : 1'b0;
+
+`ifdef BUS_DEBUG
+    always @(posedge clk) begin
+        if (backward_data_valid)
+            $display("[%0t] backward_sel=%0d data_bit=%0b", $time, backward_sel, backward_data_bit);
+        if (init0_bus_data_in_valid)
+            $display("[%0t] init0_bus_data_in bit=%0b", $time, init0_bus_data_in);
+        if (init1_bus_data_in_valid)
+            $display("[%0t] init1_bus_data_in bit=%0b", $time, init1_bus_data_in);
+        if (init0_target_ack_in)
+            $display("[%0t] init0_target_ack_in", $time);
+        if (init1_target_ack_in)
+            $display("[%0t] init1_target_ack_in", $time);
+    end
+`endif
 
 endmodule

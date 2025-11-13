@@ -289,6 +289,22 @@ module bus_tb;
             $display("[%0t] init0_grant", $time);
         if (init0_data_in_valid)
             $display("[%0t] init0_data_in_valid data=%02h", $time, init0_data_in);
+        if (u_bus.init0_bus_data_in_valid)
+            $display("[%0t] internal init0_bus_data_in bit=%0b", $time, u_bus.init0_bus_data_in);
+        if (u_bus.init0_target_ack_in)
+            $display("[%0t] internal init0_target_ack_in", $time);
+        if (u_bus.split_owner_valid)
+            $display("[%0t] split_owner_valid owner=%0d waiting=%0b", $time, u_bus.split_owner, u_bus.split_waiting_for_return);
+        if (u_bus.init0_receive_back && !u_bus.init1_receive_back)
+            $display("[%0t] init0_receive_back active", $time);
+        if (u_bus.target3_bus_data_out_valid)
+            $display("[%0t] target3_bus_data_out_valid bit=%0b", $time, u_bus.target3_bus_data_out);
+        if (u_bus.backward_data_valid)
+            $display("[%0t] backward_data_valid bit=%0b sel=%0d", $time, u_bus.backward_data_bit, u_bus.backward_sel);
+        if (u_bus.u_init_port_0.tx_active)
+            $display("[%0t] init0_tx_active", $time);
+        if (u_bus.u_split_target_port.tx_active)
+            $display("[%0t] split_port_tx_active bits_left=%0d", $time, u_bus.u_split_target_port.tx_bits_remaining);
     end
 
     always_ff @(posedge clk or negedge rst_n) begin
