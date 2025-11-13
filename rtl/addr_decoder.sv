@@ -4,6 +4,7 @@ module addr_decoder(
     input logic bus_data_in,
     input logic bus_data_in_valid,
     input logic bus_mode, // 1 for data, 0 for address
+    input logic bus_rw,   // 1 for write transactions, 0 for reads
     output logic target_1_valid,
     output logic target_2_valid,
     output logic target_3_valid,
@@ -35,69 +36,38 @@ module addr_decoder(
 
     logic [15:0] addr_shift;
     logic [4:0] addr_bit_count;
+    logic [2:0] pulse_valids;
+    logic [1:0] pulse_sel;
+    logic [2:0] hold_valids;
+    logic [1:0] hold_sel;
     logic hold_active;
-    logic [2:0] held_valids;
-    logic [1:0] held_sel;
-    logic data_phase_active;
     logic [3:0] data_bit_count;
-    logic [2:0] pending_valids;
-    logic [1:0] pending_sel;
-    logic pending_load;
-    logic clear_pending;
+    logic wait_for_data_phase;
 
-    assign sel = held_sel;
-    assign target_1_valid = held_valids[0];
-    assign target_2_valid = held_valids[1];
-    assign target_3_valid = held_valids[2];
+    assign target_1_valid = hold_active ? hold_valids[0] : pulse_valids[0];
+    assign target_2_valid = hold_active ? hold_valids[1] : pulse_valids[1];
+    assign target_3_valid = hold_active ? hold_valids[2] : pulse_valids[2];
+    assign sel = hold_active ? hold_sel : pulse_sel;
 
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             addr_shift <= '0;
             addr_bit_count <= '0;
+            pulse_valids <= 3'b000;
+            pulse_sel <= 2'b00;
+            hold_valids <= 3'b000;
+            hold_sel <= 2'b00;
             hold_active <= 1'b0;
-            held_valids <= 3'b000;
-            held_sel <= 2'b00;
-            data_phase_active <= 1'b0;
             data_bit_count <= 4'd0;
-            pending_valids <= 3'b000;
-            pending_sel <= 2'b00;
-            pending_load <= 1'b0;
-            clear_pending <= 1'b0;
+            wait_for_data_phase <= 1'b0;
         end else begin
-            if (pending_load) begin
-                held_valids <= pending_valids;
-                held_sel <= pending_sel;
-                hold_active <= |pending_valids;
-                pending_load <= 1'b0;
-                clear_pending <= 1'b0;
-            end else if (clear_pending) begin
-                held_valids <= 3'b000;
-                held_sel <= 2'b00;
-                hold_active <= 1'b0;
-                clear_pending <= 1'b0;
-                pending_load <= 1'b0;
-            end
+            pulse_valids <= 3'b000;
+            pulse_sel <= 2'b00;
 
-            if (bus_mode && hold_active && bus_data_in_valid) begin
-                logic [3:0] next_count;
-                next_count = data_phase_active ? (data_bit_count + 4'd1) : 4'd1;
-
-                if (next_count == 4'd8) begin
-                    clear_pending <= 1'b1;
-                    data_phase_active <= 1'b0;
-                    data_bit_count <= 4'd0;
-                end else begin
-                    data_phase_active <= 1'b1;
-                    data_bit_count <= next_count;
-                end
-            end else if (!bus_mode) begin
-                data_phase_active <= 1'b0;
-                data_bit_count <= 4'd0;
-            end
-
-            if (!bus_mode && bus_data_in_valid && !hold_active) begin
+            if (!bus_mode && bus_data_in_valid) begin
                 logic [15:0] addr_next;
-                addr_next = {bus_data_in, addr_shift[15:1]};
+                addr_next = addr_shift;
+                addr_next[addr_bit_count] = bus_data_in;
                 addr_shift <= addr_next;
 
                 if (addr_bit_count == 5'd15) begin
@@ -107,20 +77,58 @@ module addr_decoder(
                     decoded_valids = decode_target(addr_next);
                     decoded_sel = encode_sel(decoded_valids);
 
-                    pending_valids <= decoded_valids;
-                    pending_sel <= decoded_sel;
-                    pending_load <= 1'b1;
-                    data_phase_active <= 1'b0;
-                    data_bit_count <= 4'd0;
+                    pulse_valids <= decoded_valids;
+                    pulse_sel <= decoded_sel;
+
+                    if (bus_rw && |decoded_valids) begin
+                        hold_valids <= decoded_valids;
+                        hold_sel <= decoded_sel;
+                        hold_active <= 1'b1;
+                        wait_for_data_phase <= 1'b1;
+                        data_bit_count <= 4'd0;
+                    end else begin
+                        hold_valids <= 3'b000;
+                        hold_sel <= 2'b00;
+                        hold_active <= 1'b0;
+                        wait_for_data_phase <= 1'b0;
+                    end
+
                     addr_bit_count <= 5'd0;
+                    addr_shift <= '0;
                 end else begin
                     addr_bit_count <= addr_bit_count + 5'd1;
                 end
+            end else if (!bus_mode && !bus_data_in_valid) begin
+                addr_bit_count <= 5'd0;
+                addr_shift <= '0;
             end
 
-            if (!hold_active && !bus_mode && !bus_data_in_valid) begin
-                data_phase_active <= 1'b0;
+            if (hold_active) begin
+                if (bus_mode && bus_data_in_valid) begin
+                    wait_for_data_phase <= 1'b0;
+                    data_bit_count <= data_bit_count + 4'd1;
+                    if (data_bit_count == 4'd7) begin
+                        hold_active <= 1'b0;
+                        hold_valids <= 3'b000;
+                        hold_sel <= 2'b00;
+                        data_bit_count <= 4'd0;
+                    end
+                end else if (!bus_mode && !bus_data_in_valid && !wait_for_data_phase) begin
+                    // Data phase completed cleanly, release the hold.
+                    hold_active <= 1'b0;
+                    hold_valids <= 3'b000;
+                    hold_sel <= 2'b00;
+                    data_bit_count <= 4'd0;
+                end else if (!bus_mode && !bus_data_in_valid && wait_for_data_phase) begin
+                    // No data ever arrived; release the hold so reads can progress.
+                    hold_active <= 1'b0;
+                    hold_valids <= 3'b000;
+                    hold_sel <= 2'b00;
+                    wait_for_data_phase <= 1'b0;
+                end
+            end else begin
                 data_bit_count <= 4'd0;
+                wait_for_data_phase <= 1'b0;
             end
         end
     end
