@@ -32,6 +32,9 @@ module init_port_tb;
     localparam bit [15:0] TEST_ADDR = 16'hA55A;
     localparam bit [7:0] TEST_DATA_WR = 8'h3C;
     localparam bit [7:0] TEST_DATA_RD = 8'h96;
+    localparam bit [15:0] TEST_ADDR_RD1 = 16'h1357;
+    localparam bit [15:0] TEST_ADDR_RD2 = 16'h2468;
+    localparam bit [15:0] TEST_ADDR_RD3 = 16'h9ACE;
 
     init_port dut (
         .clk(clk),
@@ -67,11 +70,17 @@ module init_port_tb;
     end
 
     int read_valid_count;
+    int init_ack_pulse_count;
     always @(posedge clk or negedge rst_n) begin
-        if (!rst_n)
+        if (!rst_n) begin
             read_valid_count <= 0;
-        else if (init_data_in_valid)
-            read_valid_count <= read_valid_count + 1;
+            init_ack_pulse_count <= 0;
+        end else begin
+            if (init_data_in_valid)
+                read_valid_count <= read_valid_count + 1;
+            if (init_ack)
+                init_ack_pulse_count <= init_ack_pulse_count + 1;
+        end
     end
 
     task automatic reset_dut;
@@ -144,28 +153,112 @@ module init_port_tb;
             $error("[%0t] bus_mode should return to 0 when idle", $time);
     endtask
 
-    task automatic drive_read_data(input bit [7:0] data);
+    task automatic issue_read_addr(input bit [15:0] addr);
+        bit [15:0] captured;
+        int bit_idx;
+
+        captured = '0;
+        bit_idx = 0;
+
+        init_req = 1'b1;
+        arbiter_grant = 1'b1;
+        init_rw = 1'b0;
+        init_addr_out = addr;
+        init_addr_out_valid = 1'b1;
+        init_data_out_valid = 1'b0;
+        init_data_out = '0;
+
+        @(posedge clk);
+        init_addr_out_valid = 1'b0;
+
+        while (bit_idx < 16) begin
+            @(posedge clk);
+            if (bus_data_out_valid) begin
+                captured[bit_idx] = bus_data_out;
+                if (bus_mode !== 1'b0)
+                    $error("[%0t] bus_mode should be 0 during read address bits", $time);
+                bit_idx++;
+            end
+        end
+
+        init_req = 1'b0;
+        arbiter_grant = 1'b0;
+
+        if (captured !== addr)
+            $error("[%0t] Read address serialisation mismatch. Expected %h, got %h", $time, addr, captured);
+        else
+            $display("[%0t] Read address serialisation OK (%h)", $time, captured);
+
+        @(posedge clk);
+        if (bus_mode !== 1'b1)
+            $error("[%0t] bus_mode should be 1 while awaiting read data", $time);
+    endtask
+
+    task automatic drive_read_data(
+        input bit [7:0] data,
+        input int ack_timing_cycles, // <0: ack before data, 0: ack immediately after data bits, >0: ack after data by N cycles
+        input string scenario_name
+    );
         init_req = 1'b0;
         arbiter_grant = 1'b0;
         init_rw = 1'b0;
 
         repeat (2) @(posedge clk);
 
+        int ack_count_before;
+        ack_count_before = init_ack_pulse_count;
+
+        // Ack asserted before data
+        if (ack_timing_cycles < 0) begin
+            target_ack = 1'b1;
+            @(posedge clk);
+            target_ack = 1'b0;
+        end
+
+        bit ack_seen_pre_data;
+        ack_seen_pre_data = 1'b0;
+
         for (int i = 0; i < 8; i++) begin
             bus_data_in = data[i];
             bus_data_in_valid = 1'b1;
             @(posedge clk);
+            if (init_ack)
+                ack_seen_pre_data = 1'b1;
         end
 
         bus_data_in_valid = 1'b0;
         bus_data_in = 1'b0;
 
-        wait (init_data_in_valid);
+        if (ack_timing_cycles == 0) begin
+            target_ack = 1'b1;
+            @(posedge clk);
+            target_ack = 1'b0;
+        end else if (ack_timing_cycles > 0) begin
+            repeat (ack_timing_cycles) @(posedge clk);
+            target_ack = 1'b1;
+            @(posedge clk);
+            target_ack = 1'b0;
+        end
+
+        while (!init_data_in_valid) begin
+            if (init_ack)
+                ack_seen_pre_data = 1'b1;
+            @(posedge clk);
+        end
 
         if (init_data_in !== data)
-            $error("[%0t] Read data mismatch. Expected %h, got %h", $time, data, init_data_in);
+            $error("[%0t] %s: Read data mismatch. Expected %h, got %h", $time, scenario_name, data, init_data_in);
         else
-            $display("[%0t] Read data deserialisation OK (%h)", $time, init_data_in);
+            $display("[%0t] %s: Read data deserialisation OK (%h)", $time, scenario_name, init_data_in);
+
+        if (!init_ack)
+            $error("[%0t] %s: init_ack missing when read data valid", $time, scenario_name);
+
+        if (ack_seen_pre_data && ack_timing_cycles < 0)
+            $error("[%0t] %s: init_ack should not assert before read data valid", $time, scenario_name);
+
+        if ((init_ack_pulse_count - ack_count_before) != 1)
+            $error("[%0t] %s: Expected exactly one init_ack pulse, observed %0d", $time, scenario_name, init_ack_pulse_count - ack_count_before);
 
         repeat (2) @(posedge clk);
     endtask
@@ -202,10 +295,17 @@ module init_port_tb;
         target_ack = 1'b0;
         target_split = 1'b0;
 
-        drive_read_data(TEST_DATA_RD);
+        issue_read_addr(TEST_ADDR_RD1);
+        drive_read_data(TEST_DATA_RD, -1, "early ACK before data");
 
-        if (read_valid_count != 1)
-            $error("[%0t] Expected exactly one read-valid pulse, observed %0d", $time, read_valid_count);
+        issue_read_addr(TEST_ADDR_RD2);
+        drive_read_data(TEST_DATA_RD ^ 8'hFF, 0, "ACK same cycle as data");
+
+        issue_read_addr(TEST_ADDR_RD3);
+        drive_read_data(TEST_DATA_RD ^ 8'h5A, 2, "ACK after data");
+
+        if (read_valid_count != 3)
+            $error("[%0t] Expected three read-valid pulses, observed %0d", $time, read_valid_count);
 
         repeat (5) @(posedge clk);
         $display("[%0t] init_port testbench completed.", $time);

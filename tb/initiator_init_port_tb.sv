@@ -221,8 +221,14 @@ module initiator_init_port_tb;
 
     always @(posedge clk) begin
         if (rst_n) begin
-            if (init_ack !== target_ack)
-                $error("init_ack pass-through mismatch");
+            if (target_ack && bus_init_rw && !init_ack)
+                $error("Write acknowledgement not forwarded to initiator");
+            if (init_ack && bus_init_rw && !target_ack)
+                $error("Initiator observed write ACK without target asserting ack");
+            if (init_ack && !bus_init_rw && !init_data_in_valid)
+                $error("Read acknowledgement arrived without data valid");
+            if (init_data_in_valid && !init_ack)
+                $error("Read data valid without acknowledgement");
             if (init_split_ack !== target_split)
                 $error("init_split_ack pass-through mismatch");
         end
