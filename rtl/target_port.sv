@@ -86,17 +86,26 @@ module target_port(
             target_addr_in_valid <= 1'b0;
             target_data_in_valid <= 1'b0;
 
-            if (addr_pending && !addr_expect_data) begin
-                target_addr_in <= addr_buffer;
-                target_data_in <= '0;
-                target_addr_in_valid <= 1'b1;
-                addr_pending <= 1'b0;
-                addr_expect_data <= 1'b0;
-            end else if (addr_pending && addr_expect_data && data_pending) begin
-                target_addr_in <= addr_buffer;
-                target_data_in <= data_buffer;
-                target_addr_in_valid <= 1'b1;
-                target_data_in_valid <= 1'b1;
+            if (addr_pending && decoder_valid) begin
+                if (!addr_expect_data) begin
+                    target_addr_in <= addr_buffer;
+                    target_data_in <= '0;
+                    target_addr_in_valid <= 1'b1;
+                    addr_pending <= 1'b0;
+                    addr_expect_data <= 1'b0;
+                end else if (data_pending) begin
+                    target_addr_in <= addr_buffer;
+                    target_data_in <= data_buffer;
+                    target_addr_in_valid <= 1'b1;
+                    target_data_in_valid <= 1'b1;
+                    addr_pending <= 1'b0;
+                    addr_expect_data <= 1'b0;
+                    data_pending <= 1'b0;
+                    data_buffer <= '0;
+                end
+            end
+
+            if (addr_pending && !decoder_valid && !bus_data_in_valid && !bus_mode) begin
                 addr_pending <= 1'b0;
                 addr_expect_data <= 1'b0;
                 data_pending <= 1'b0;
@@ -111,15 +120,8 @@ module target_port(
 
                     if (addr_bit_count == 5'd15) begin
                         addr_buffer <= updated_addr;
-                        if (decoder_valid) begin
-                            addr_pending <= 1'b1;
-                            addr_expect_data <= target_rw;
-                        end else begin
-                            addr_pending <= 1'b0;
-                            addr_expect_data <= 1'b0;
-                            data_pending <= 1'b0;
-                            data_buffer <= '0;
-                        end
+                        addr_pending <= 1'b1;
+                        addr_expect_data <= target_rw;
                         rx_addr_shift <= '0;
                         addr_bit_count <= 5'd0;
                     end else begin
