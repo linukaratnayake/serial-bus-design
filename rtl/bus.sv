@@ -114,6 +114,7 @@ module bus(
     logic split_port_arbiter_split_req;
 
     init_sel_t arb_sel;
+    logic [1:0] arb_sel_bits;
     logic [1:0] decoder_sel;
     logic       target1_valid;
     logic       target2_valid;
@@ -279,7 +280,7 @@ module bus(
         .grant_i_1(grant_i1),
         .grant_i_2(grant_i2),
         .grant_split(grant_split),
-        .sel(arb_sel)
+        .sel(arb_sel_bits)
     );
 
     addr_decoder u_addr_decoder (
@@ -293,6 +294,15 @@ module bus(
         .target_3_valid(target3_valid),
         .sel(decoder_sel)
     );
+
+    // Decode arbiter select into enum for local use.
+    always_comb begin
+        unique case (arb_sel_bits)
+            2'b01: arb_sel = INIT_1;
+            2'b10: arb_sel = INIT_2;
+            default: arb_sel = INIT_NONE;
+        endcase
+    end
 
     // Forward bus multiplexing
     always_comb begin
