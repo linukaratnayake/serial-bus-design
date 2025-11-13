@@ -68,8 +68,8 @@ always_ff @(posedge clk or negedge rst_n) begin
     end else begin
         bus_data_out_valid <= 1'b0;
 
-            if (rx_byte_ready)
-                expect_read_data <= 1'b0;
+        if (rx_byte_ready)
+            expect_read_data <= 1'b0;
 
         if (arbiter_grant && init_req) begin
             if (init_addr_out_valid) begin
@@ -145,7 +145,7 @@ always_ff @(posedge clk or negedge rst_n) begin
         init_ack_reg <= 1'b0;
 
         // Only sample the shared bus when the initiator is not actively driving.
-    if (bus_data_in_valid && !tx_active) begin
+        if (bus_data_in_valid && !tx_active) begin
             logic [7:0] rx_next;
             rx_next = rx_shift;
             rx_next[rx_bit_count] = bus_data_in;
