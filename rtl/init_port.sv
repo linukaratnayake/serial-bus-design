@@ -30,7 +30,10 @@ assign init_grant = arbiter_grant;
 assign arbiter_req = init_req;
 assign bus_init_rw = init_rw;
 assign bus_init_ready = init_ready;
-assign init_ack = target_ack;
+logic init_ack_reg;
+logic ack_pending_read;
+
+assign init_ack = init_ack_reg;
 assign init_split_ack = target_split;
 
 logic [15:0] tx_shift;
@@ -113,15 +116,22 @@ always_ff @(posedge clk or negedge rst_n) begin
 end
 
 always_ff @(posedge clk or negedge rst_n) begin
+    logic data_complete_now;
+
     if (!rst_n) begin
         rx_shift <= '0;
         rx_bit_count <= '0;
         init_data_in <= '0;
         init_data_in_valid <= 1'b0;
         rx_byte_ready <= 1'b0;
+        init_ack_reg <= 1'b0;
+        ack_pending_read <= 1'b0;
+        data_complete_now = 1'b0;
     end else begin
+        data_complete_now = 1'b0;
         init_data_in_valid <= 1'b0;
         rx_byte_ready <= 1'b0;
+        init_ack_reg <= 1'b0;
 
         // Only sample the shared bus when the initiator is not actively driving.
         if (bus_data_in_valid && !tx_active) begin
@@ -135,10 +145,31 @@ always_ff @(posedge clk or negedge rst_n) begin
                 rx_bit_count <= 3'd0;
                 rx_shift <= '0;
                 rx_byte_ready <= 1'b1;
+                data_complete_now = 1'b1;
             end else begin
                 rx_bit_count <= rx_bit_count + 3'd1;
                 rx_shift <= rx_next;
             end
+        end
+
+        if (!expect_read_data)
+            ack_pending_read <= 1'b0;
+
+        if (target_ack) begin
+            if (expect_read_data) begin
+                if (data_complete_now) begin
+                    init_ack_reg <= 1'b1;
+                end else begin
+                    ack_pending_read <= 1'b1;
+                end
+            end else begin
+                init_ack_reg <= 1'b1;
+            end
+        end
+
+        if (data_complete_now && ack_pending_read) begin
+            init_ack_reg <= 1'b1;
+            ack_pending_read <= 1'b0;
         end
     end
 end

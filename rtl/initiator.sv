@@ -126,7 +126,7 @@ always_ff @(posedge clk or negedge rst_n) begin
                 init_addr_out_valid_r <= 1'b0;
                 init_data_out_valid_r <= 1'b0;
 
-                if (init_ack || init_split_ack) begin
+                if (init_ack) begin
                     init_req_r <= 1'b0;
                     addr_sent <= 1'b0;
                     data_sent <= 1'b0;
@@ -143,7 +143,7 @@ always_ff @(posedge clk or negedge rst_n) begin
                 addr_sent <= 1'b0;
                 data_sent <= 1'b0;
 
-                if (init_ack || init_split_ack) begin
+                if (init_ack) begin
                     init_req_r <= 1'b0;
                     init_rw_r <= 1'b0;
                     state <= S_READ_REQ;
