@@ -32,6 +32,8 @@ assign bus_init_rw = init_rw;
 assign bus_init_ready = init_ready;
 logic init_ack_reg;
 logic ack_pending_read;
+logic read_data_pending;
+logic [7:0] read_data_buffer;
 
 assign init_ack = init_ack_reg;
 assign init_split_ack = target_split;
@@ -126,9 +128,18 @@ always_ff @(posedge clk or negedge rst_n) begin
         rx_byte_ready <= 1'b0;
         init_ack_reg <= 1'b0;
         ack_pending_read <= 1'b0;
-        data_complete_now = 1'b0;
+        read_data_pending <= 1'b0;
+        read_data_buffer <= '0;
     end else begin
-        data_complete_now = 1'b0;
+        logic data_now_valid;
+        logic [7:0] data_now_value;
+        logic release_data_now;
+        logic [7:0] release_data_value;
+
+        data_now_valid = 1'b0;
+        data_now_value = '0;
+        release_data_now = 1'b0;
+        release_data_value = read_data_buffer;
         init_data_in_valid <= 1'b0;
         rx_byte_ready <= 1'b0;
         init_ack_reg <= 1'b0;
@@ -140,25 +151,40 @@ always_ff @(posedge clk or negedge rst_n) begin
             rx_next[rx_bit_count] = bus_data_in;
 
             if (rx_bit_count == 3'd7) begin
-                init_data_in <= rx_next;
-                init_data_in_valid <= 1'b1;
                 rx_bit_count <= 3'd0;
                 rx_shift <= '0;
                 rx_byte_ready <= 1'b1;
-                data_complete_now = 1'b1;
+                data_now_valid = 1'b1;
+                data_now_value = rx_next;
+
+                if (expect_read_data || ack_pending_read || read_data_pending) begin
+                    read_data_buffer <= rx_next;
+                    read_data_pending <= 1'b1;
+                end else begin
+                    init_data_in <= rx_next;
+                    init_data_in_valid <= 1'b1;
+                end
             end else begin
                 rx_bit_count <= rx_bit_count + 3'd1;
                 rx_shift <= rx_next;
             end
         end
 
-        if (!expect_read_data)
-            ack_pending_read <= 1'b0;
-
+        // Ack handling: pair read data with ACK when both are available.
         if (target_ack) begin
-            if (expect_read_data) begin
-                if (data_complete_now) begin
+            if (data_now_valid || read_data_pending || ack_pending_read || expect_read_data) begin
+                if (data_now_valid) begin
+                    release_data_now = 1'b1;
+                    release_data_value = data_now_value;
                     init_ack_reg <= 1'b1;
+                    read_data_pending <= 1'b0;
+                    ack_pending_read <= 1'b0;
+                end else if (read_data_pending) begin
+                    release_data_now = 1'b1;
+                    release_data_value = read_data_buffer;
+                    init_ack_reg <= 1'b1;
+                    read_data_pending <= 1'b0;
+                    ack_pending_read <= 1'b0;
                 end else begin
                     ack_pending_read <= 1'b1;
                 end
@@ -167,9 +193,17 @@ always_ff @(posedge clk or negedge rst_n) begin
             end
         end
 
-        if (data_complete_now && ack_pending_read) begin
+        if (!target_ack && ack_pending_read && data_now_valid) begin
+            release_data_now = 1'b1;
+            release_data_value = data_now_value;
             init_ack_reg <= 1'b1;
             ack_pending_read <= 1'b0;
+            read_data_pending <= 1'b0;
+        end
+
+        if (release_data_now) begin
+            init_data_in <= release_data_value;
+            init_data_in_valid <= 1'b1;
         end
     end
 end
