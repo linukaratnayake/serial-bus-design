@@ -122,6 +122,9 @@ module bus(
     logic       target1_select_hold;
     logic       target2_select_hold;
     logic       target3_select_hold;
+    logic       target1_release_pending;
+    logic       target2_release_pending;
+    logic       target3_release_pending;
     logic [1:0] response_sel;
     logic       split_route_active;
 
@@ -301,27 +304,52 @@ module bus(
     );
 
     // Hold target selection until the transaction completes so the ports keep
-    // seeing a stable decoder gate.
+    // seeing a stable decoder gate. Release occurs once an ACK has been seen
+    // and the target is no longer driving return data.
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             target1_select_hold <= 1'b0;
             target2_select_hold <= 1'b0;
             target3_select_hold <= 1'b0;
+            target1_release_pending <= 1'b0;
+            target2_release_pending <= 1'b0;
+            target3_release_pending <= 1'b0;
         end else begin
-            if (target1_valid)
+            if (target1_valid) begin
                 target1_select_hold <= 1'b1;
-            else if (target1_bus_target_ack)
-                target1_select_hold <= 1'b0;
+                target1_release_pending <= 1'b0;
+            end else begin
+                if (target1_bus_target_ack)
+                    target1_release_pending <= 1'b1;
+                if (target1_release_pending && !target1_bus_data_out_valid) begin
+                    target1_select_hold <= 1'b0;
+                    target1_release_pending <= 1'b0;
+                end
+            end
 
-            if (target2_valid)
+            if (target2_valid) begin
                 target2_select_hold <= 1'b1;
-            else if (target2_bus_target_ack)
-                target2_select_hold <= 1'b0;
+                target2_release_pending <= 1'b0;
+            end else begin
+                if (target2_bus_target_ack)
+                    target2_release_pending <= 1'b1;
+                if (target2_release_pending && !target2_bus_data_out_valid) begin
+                    target2_select_hold <= 1'b0;
+                    target2_release_pending <= 1'b0;
+                end
+            end
 
-            if (target3_valid)
+            if (target3_valid) begin
                 target3_select_hold <= 1'b1;
-            else if (split_port_bus_target_ack)
-                target3_select_hold <= 1'b0;
+                target3_release_pending <= 1'b0;
+            end else begin
+                if (split_port_bus_target_ack)
+                    target3_release_pending <= 1'b1;
+                if (target3_release_pending && !split_port_bus_data_out_valid) begin
+                    target3_select_hold <= 1'b0;
+                    target3_release_pending <= 1'b0;
+                end
+            end
         end
     end
 
@@ -399,7 +427,7 @@ module bus(
                     split_owner <= INIT_1;
                 else if (grant_i2)
                     split_owner <= INIT_2;
-            end else if (split_port_bus_target_ack && !target3_select_hold) begin
+            end else if (!target3_select_hold && !split_port_bus_data_out_valid) begin
                 split_owner <= INIT_NONE;
             end
         end
