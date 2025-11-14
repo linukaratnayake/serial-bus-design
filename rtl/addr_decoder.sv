@@ -95,7 +95,8 @@ module addr_decoder(
                 data_bit_count <= 4'd0;
             end
 
-            if (!bus_mode && bus_data_in_valid && !hold_active) begin
+            // Allow a fresh address to be captured even if a prior selection is held.
+            if (!bus_mode && bus_data_in_valid) begin
                 logic [15:0] addr_next;
                 addr_next = {bus_data_in, addr_shift[15:1]};
                 addr_shift <= addr_next;
