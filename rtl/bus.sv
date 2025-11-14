@@ -342,6 +342,9 @@ module bus(
             if (target3_valid) begin
                 target3_select_hold <= 1'b1;
                 target3_release_pending <= 1'b0;
+            end else if (split_port_bus_split_ack) begin
+                target3_select_hold <= 1'b0;
+                target3_release_pending <= 1'b0;
             end else begin
                 if (split_port_bus_target_ack)
                     target3_release_pending <= 1'b1;
@@ -374,19 +377,23 @@ module bus(
         forward_valid = 1'b0;
         forward_mode  = 1'b0;
 
-        unique case (active_init)
-            INIT_1: begin
-                forward_data  = init1_bus_data_out;
-                forward_valid = init1_bus_data_out_valid;
-                forward_mode  = init1_bus_mode;
-            end
-            INIT_2: begin
-                forward_data  = init2_bus_data_out;
-                forward_valid = init2_bus_data_out_valid;
-                forward_mode  = init2_bus_mode;
-            end
-            default: ;
-        endcase
+        if (grant_split) begin
+            forward_mode = 1'b1;
+        end else begin
+            unique case (active_init)
+                INIT_1: begin
+                    forward_data  = init1_bus_data_out;
+                    forward_valid = init1_bus_data_out_valid;
+                    forward_mode  = init1_bus_mode;
+                end
+                INIT_2: begin
+                    forward_data  = init2_bus_data_out;
+                    forward_valid = init2_bus_data_out_valid;
+                    forward_mode  = init2_bus_mode;
+                end
+                default: ;
+            endcase
+        end
 
     end
 
