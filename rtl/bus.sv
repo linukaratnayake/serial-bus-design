@@ -132,6 +132,10 @@ module bus(
     logic [1:0] response_sel;
     logic       split_route_active;
     logic       split_response_pending;
+    init_sel_t  target1_owner;
+    init_sel_t  target2_owner;
+    init_sel_t  target3_owner;
+    init_sel_t  response_owner;
 
     logic forward_data;
     logic forward_valid;
@@ -325,6 +329,9 @@ module bus(
             target1_decoder_release <= 1'b0;
             target2_decoder_release <= 1'b0;
             target3_decoder_release <= 1'b0;
+            target1_owner <= INIT_NONE;
+            target2_owner <= INIT_NONE;
+            target3_owner <= INIT_NONE;
         end else begin
             target1_decoder_release <= 1'b0;
             target2_decoder_release <= 1'b0;
@@ -334,6 +341,8 @@ module bus(
             if (target1_valid && !target1_select_hold) begin
                 target1_select_hold <= 1'b1;
                 target1_release_pending <= 1'b0;
+                if (active_init != INIT_NONE)
+                    target1_owner <= active_init;
             end
 
             if (target1_bus_target_ack)
@@ -343,12 +352,15 @@ module bus(
                 target1_select_hold <= 1'b0;
                 target1_release_pending <= 1'b0;
                 target1_decoder_release <= 1'b1;
+                target1_owner <= INIT_NONE;
             end
 
             // Target 2 mirrors target 1 behaviour.
             if (target2_valid && !target2_select_hold) begin
                 target2_select_hold <= 1'b1;
                 target2_release_pending <= 1'b0;
+                if (active_init != INIT_NONE)
+                    target2_owner <= active_init;
             end
 
             if (target2_bus_target_ack)
@@ -358,6 +370,7 @@ module bus(
                 target2_select_hold <= 1'b0;
                 target2_release_pending <= 1'b0;
                 target2_decoder_release <= 1'b1;
+                target2_owner <= INIT_NONE;
             end
 
             // Split target: release immediately on split-ACK or after the
@@ -365,12 +378,15 @@ module bus(
             if (target3_valid && !target3_select_hold) begin
                 target3_select_hold <= 1'b1;
                 target3_release_pending <= 1'b0;
+                if (active_init != INIT_NONE)
+                    target3_owner <= active_init;
             end
 
             if (split_port_bus_split_ack) begin
                 target3_select_hold <= 1'b0;
                 target3_release_pending <= 1'b0;
                 target3_decoder_release <= 1'b1;
+                target3_owner <= INIT_NONE;
             end else begin
                 if (split_port_bus_target_ack)
                     target3_release_pending <= 1'b1;
@@ -379,6 +395,7 @@ module bus(
                     target3_select_hold <= 1'b0;
                     target3_release_pending <= 1'b0;
                     target3_decoder_release <= 1'b1;
+                    target3_owner <= INIT_NONE;
                 end
             end
         end
@@ -483,7 +500,9 @@ module bus(
 
     // Determine which target currently owns the return path.
     always_comb begin
-        if (target3_select_hold)
+        if (split_route_active)
+            response_sel = 2'b10;
+        else if (target3_select_hold)
             response_sel = 2'b10;
         else if (target2_select_hold)
             response_sel = 2'b01;
@@ -491,6 +510,18 @@ module bus(
             response_sel = 2'b00;
         else
             response_sel = 2'b00;
+    end
+
+    always_comb begin
+        if (split_route_active) begin
+            response_owner = split_owner;
+        end else begin
+            unique case (response_sel)
+                2'b10: response_owner = target3_owner;
+                2'b01: response_owner = target2_owner;
+                default: response_owner = target1_owner;
+            endcase
+        end
     end
 
     // Backward path selection based on latched decoder outputs.
@@ -530,35 +561,19 @@ module bus(
         init2_target_ack_int     = 1'b0;
         init2_target_split_int   = 1'b0;
 
-        if (split_route_active) begin
-            case (split_owner)
-                INIT_1: begin
-                    init1_bus_data_in       = split_port_bus_data_out;
-                    init1_bus_data_in_valid = split_port_bus_data_out_valid;
-                    init1_target_ack_int    = split_port_bus_target_ack;
-                end
-                INIT_2: begin
-                    init2_bus_data_in       = split_port_bus_data_out;
-                    init2_bus_data_in_valid = split_port_bus_data_out_valid;
-                    init2_target_ack_int    = split_port_bus_target_ack;
-                end
-                default: ;
-            endcase
-        end else begin
-            case (active_init)
-                INIT_1: begin
-                    init1_bus_data_in       = response_data;
-                    init1_bus_data_in_valid = response_valid;
-                    init1_target_ack_int    = response_ack;
-                end
-                INIT_2: begin
-                    init2_bus_data_in       = response_data;
-                    init2_bus_data_in_valid = response_valid;
-                    init2_target_ack_int    = response_ack;
-                end
-                default: ;
-            endcase
-        end
+        case (response_owner)
+            INIT_1: begin
+                init1_bus_data_in       = response_data;
+                init1_bus_data_in_valid = response_valid;
+                init1_target_ack_int    = response_ack;
+            end
+            INIT_2: begin
+                init2_bus_data_in       = response_data;
+                init2_bus_data_in_valid = response_valid;
+                init2_target_ack_int    = response_ack;
+            end
+            default: ;
+        endcase
 
         if (split_port_bus_split_ack) begin
             case (active_init)
