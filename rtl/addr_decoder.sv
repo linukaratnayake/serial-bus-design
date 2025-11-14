@@ -1,13 +1,14 @@
 module addr_decoder(
-    input logic clk,
-    input logic rst_n,
-    input logic bus_data_in,
-    input logic bus_data_in_valid,
-    input logic bus_mode, // 1 for data, 0 for address
-    output logic target_1_valid,
-    output logic target_2_valid,
-    output logic target_3_valid,
-    output logic [1:0] sel
+    input  logic        clk,
+    input  logic        rst_n,
+    input  logic        bus_data_in,
+    input  logic        bus_data_in_valid,
+    input  logic        bus_mode,          // 1 for data, 0 for address
+    input  logic [2:0]  release_valids,    // one-hot release strobes from the bus
+    output logic        target_1_valid,
+    output logic        target_2_valid,
+    output logic        target_3_valid,
+    output logic [1:0]  sel
 );
 
     function automatic logic [2:0] decode_target(logic [15:0] addr);
@@ -38,12 +39,9 @@ module addr_decoder(
     logic hold_active;
     logic [2:0] held_valids;
     logic [1:0] held_sel;
-    logic data_phase_active;
-    logic [3:0] data_bit_count;
     logic [2:0] pending_valids;
     logic [1:0] pending_sel;
     logic pending_load;
-    logic clear_pending;
 
     assign sel = held_sel;
     assign target_1_valid = held_valids[0];
@@ -57,46 +55,36 @@ module addr_decoder(
             hold_active <= 1'b0;
             held_valids <= 3'b000;
             held_sel <= 2'b00;
-            data_phase_active <= 1'b0;
-            data_bit_count <= 4'd0;
             pending_valids <= 3'b000;
             pending_sel <= 2'b00;
             pending_load <= 1'b0;
-            clear_pending <= 1'b0;
         end else begin
+            logic [2:0] next_valids;
+            logic [1:0] next_sel;
+            logic       next_hold_active;
+
+            next_valids = held_valids;
+            next_sel = held_sel;
+            next_hold_active = hold_active;
+
             if (pending_load) begin
-                held_valids <= pending_valids;
-                held_sel <= pending_sel;
-                hold_active <= |pending_valids;
-                pending_load <= 1'b0;
-                clear_pending <= 1'b0;
-            end else if (clear_pending) begin
-                held_valids <= 3'b000;
-                held_sel <= 2'b00;
-                hold_active <= 1'b0;
-                clear_pending <= 1'b0;
+                next_valids = pending_valids;
+                next_sel = pending_sel;
+                next_hold_active = |pending_valids;
                 pending_load <= 1'b0;
             end
 
-            if (bus_mode && hold_active && bus_data_in_valid) begin
-                logic [3:0] next_count;
-                next_count = data_phase_active ? (data_bit_count + 4'd1) : 4'd1;
-
-                if (next_count == 4'd8) begin
-                    clear_pending <= 1'b1;
-                    data_phase_active <= 1'b0;
-                    data_bit_count <= 4'd0;
-                end else begin
-                    data_phase_active <= 1'b1;
-                    data_bit_count <= next_count;
-                end
-            end else if (!bus_mode) begin
-                data_phase_active <= 1'b0;
-                data_bit_count <= 4'd0;
+            if (|release_valids) begin
+                next_valids &= ~release_valids;
+                next_sel = encode_sel(next_valids);
+                next_hold_active = |next_valids;
             end
 
-            // Allow a fresh address to be captured even if a prior selection is held.
-            if (!bus_mode && bus_data_in_valid) begin
+            held_valids <= next_valids;
+            held_sel <= next_sel;
+            hold_active <= next_hold_active;
+
+            if (!bus_mode && bus_data_in_valid && !hold_active) begin
                 logic [15:0] addr_next;
                 addr_next = {bus_data_in, addr_shift[15:1]};
                 addr_shift <= addr_next;
@@ -111,17 +99,13 @@ module addr_decoder(
                     pending_valids <= decoded_valids;
                     pending_sel <= decoded_sel;
                     pending_load <= 1'b1;
-                    data_phase_active <= 1'b0;
-                    data_bit_count <= 4'd0;
                     addr_bit_count <= 5'd0;
                 end else begin
                     addr_bit_count <= addr_bit_count + 5'd1;
                 end
-            end
-
-            if (!hold_active && !bus_mode && !bus_data_in_valid) begin
-                data_phase_active <= 1'b0;
-                data_bit_count <= 4'd0;
+            end else if (!bus_mode && !bus_data_in_valid && !hold_active && !pending_load) begin
+                addr_shift <= '0;
+                addr_bit_count <= 5'd0;
             end
         end
     end

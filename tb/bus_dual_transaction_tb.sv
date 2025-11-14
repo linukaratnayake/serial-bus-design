@@ -4,10 +4,10 @@ module bus_dual_transaction_tb;
     logic clk;
     logic rst_n;
 
-    localparam bit [15:0] TARGET1_ADDR = 16'h0008;
     localparam bit [15:0] TARGET2_ADDR = 16'h4004;
-    localparam bit [7:0] TARGET1_WRITE_DATA = 8'h3C;
+    localparam bit [15:0] TARGET3_ADDR = 16'h8004;
     localparam bit [7:0] TARGET2_WRITE_DATA = 8'hA7;
+    localparam bit [7:0] TARGET3_WRITE_DATA = 8'h5E;
 
     // Initiator 1 wiring (targets slave 2)
     logic         init1_trigger;
@@ -103,9 +103,9 @@ module bus_dual_transaction_tb;
     );
 
     initiator #(
-        .WRITE_ADDR(TARGET1_ADDR),
-        .READ_ADDR(TARGET1_ADDR),
-        .MEM_INIT_DATA(TARGET1_WRITE_DATA)
+        .WRITE_ADDR(TARGET3_ADDR),
+        .READ_ADDR(TARGET3_ADDR),
+        .MEM_INIT_DATA(TARGET3_WRITE_DATA)
     ) u_initiator_2 (
         .clk(clk),
         .rst_n(rst_n),
@@ -251,7 +251,10 @@ module bus_dual_transaction_tb;
     bit target1_read_seen;
     bit target2_write_seen;
     bit target2_read_seen;
-    bit split_target_accessed;
+    bit split_target_write_seen;
+    bit split_target_read_seen;
+    bit split_target_split_ack_seen;
+    bit split_target_data_out_seen;
     int init1_data_in_count;
     int init2_data_in_count;
 
@@ -264,7 +267,10 @@ module bus_dual_transaction_tb;
             target1_read_seen <= 1'b0;
             target2_write_seen <= 1'b0;
             target2_read_seen <= 1'b0;
-            split_target_accessed <= 1'b0;
+            split_target_write_seen <= 1'b0;
+            split_target_read_seen <= 1'b0;
+            split_target_split_ack_seen <= 1'b0;
+            split_target_data_out_seen <= 1'b0;
             init1_data_in_count <= 0;
             init2_data_in_count <= 0;
             init1_read_data <= '0;
@@ -280,8 +286,14 @@ module bus_dual_transaction_tb;
             if (target2_addr_in_valid && !target2_rw)
                 target2_read_seen <= 1'b1;
 
-            if (split_target_addr_in_valid || split_target_data_out_valid || split_target_split_ack)
-                split_target_accessed <= 1'b1;
+            if (split_target_addr_in_valid && split_target_rw)
+                split_target_write_seen <= 1'b1;
+            if (split_target_addr_in_valid && !split_target_rw)
+                split_target_read_seen <= 1'b1;
+            if (split_target_split_ack)
+                split_target_split_ack_seen <= 1'b1;
+            if (split_target_data_out_valid)
+                split_target_data_out_seen <= 1'b1;
 
             if (init1_data_in_valid) begin
                 init1_data_in_count <= init1_data_in_count + 1;
@@ -328,15 +340,21 @@ module bus_dual_transaction_tb;
         wait (init1_done);
         repeat (10) @(posedge clk);
 
-        // Checks for transaction 1
-        if (!target1_write_seen)
-            $error("Target 1 write was not observed");
-        if (!target1_read_seen)
-            $error("Target 1 read was not observed");
+        // Checks for transaction 1 (initiator 2 -> split target)
+        if (!split_target_write_seen)
+            $error("Split target write was not observed");
+        if (!split_target_read_seen)
+            $error("Split target read was not observed");
+        if (!split_target_split_ack_seen)
+            $error("Split target split-ack was not observed");
+        if (!split_target_data_out_seen)
+            $error("Split target read data was not observed");
+        if (target1_write_seen || target1_read_seen)
+            $error("Target 1 should remain idle during split target transaction");
         if (init2_data_in_count != 1)
             $error("Initiator 2 should observe exactly one data-valid pulse, saw %0d", init2_data_in_count);
-        if (init2_read_data !== TARGET1_WRITE_DATA)
-            $error("Initiator 2 read data mismatch. Expected %h, got %h", TARGET1_WRITE_DATA, init2_read_data);
+        if (init2_read_data !== TARGET3_WRITE_DATA)
+            $error("Initiator 2 read data mismatch. Expected %h, got %h", TARGET3_WRITE_DATA, init2_read_data);
 
         // Checks for transaction 2
         if (!target2_write_seen)
@@ -347,9 +365,6 @@ module bus_dual_transaction_tb;
             $error("Initiator 1 should observe exactly one data-valid pulse, saw %0d", init1_data_in_count);
         if (init1_read_data !== TARGET2_WRITE_DATA)
             $error("Initiator 1 read data mismatch. Expected %h, got %h", TARGET2_WRITE_DATA, init1_read_data);
-
-        if (split_target_accessed)
-            $error("Split target should remain idle during dual-transaction test");
 
         $display("[%0t] Dual-transaction bus integration test completed successfully.", $time);
         $finish;
