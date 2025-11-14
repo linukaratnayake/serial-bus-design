@@ -113,12 +113,17 @@ module bus(
     logic split_port_bus_split_ack;
     logic split_port_arbiter_split_req;
 
-    init_sel_t arb_sel;
     logic [1:0] arb_sel_bits;
+    init_sel_t active_init;
     logic [1:0] decoder_sel;
     logic       target1_valid;
     logic       target2_valid;
     logic       target3_valid;
+    logic       target1_select_hold;
+    logic       target2_select_hold;
+    logic       target3_select_hold;
+    logic [1:0] response_sel;
+    logic       split_route_active;
 
     logic forward_data;
     logic forward_valid;
@@ -295,13 +300,44 @@ module bus(
         .sel(decoder_sel)
     );
 
-    // Decode arbiter select into enum for local use.
-    always_comb begin
-        unique case (arb_sel_bits)
-            2'b01: arb_sel = INIT_1;
-            2'b10: arb_sel = INIT_2;
-            default: arb_sel = INIT_NONE;
-        endcase
+    // Hold target selection until the transaction completes so the ports keep
+    // seeing a stable decoder gate.
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            target1_select_hold <= 1'b0;
+            target2_select_hold <= 1'b0;
+            target3_select_hold <= 1'b0;
+        end else begin
+            if (target1_valid)
+                target1_select_hold <= 1'b1;
+            else if (target1_bus_target_ack)
+                target1_select_hold <= 1'b0;
+
+            if (target2_valid)
+                target2_select_hold <= 1'b1;
+            else if (target2_bus_target_ack)
+                target2_select_hold <= 1'b0;
+
+            if (target3_valid)
+                target3_select_hold <= 1'b1;
+            else if (split_port_bus_target_ack)
+                target3_select_hold <= 1'b0;
+        end
+    end
+
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            active_init <= INIT_NONE;
+        end else begin
+            if (grant_i1) begin
+                active_init <= INIT_1;
+            end else if (grant_i2) begin
+                active_init <= INIT_2;
+            end else if ((active_init == INIT_1 && !init1_arbiter_req) ||
+                         (active_init == INIT_2 && !init2_arbiter_req)) begin
+                active_init <= INIT_NONE;
+            end
+        end
     end
 
     // Forward bus multiplexing
@@ -310,7 +346,7 @@ module bus(
         forward_valid = 1'b0;
         forward_mode  = 1'b0;
 
-        unique case (arb_sel)
+        unique case (active_init)
             INIT_1: begin
                 forward_data  = init1_bus_data_out;
                 forward_valid = init1_bus_data_out_valid;
@@ -323,6 +359,7 @@ module bus(
             end
             default: ;
         endcase
+
     end
 
     // Track last requested direction so targets see a stable RW qualifier.
@@ -330,15 +367,16 @@ module bus(
         if (!rst_n) begin
             last_bus_rw <= 1'b0;
         end else begin
-            if (arb_sel == INIT_1)
-                last_bus_rw <= init1_bus_init_rw;
-            else if (arb_sel == INIT_2)
-                last_bus_rw <= init2_bus_init_rw;
+            case (active_init)
+                INIT_1: last_bus_rw <= init1_bus_init_rw;
+                INIT_2: last_bus_rw <= init2_bus_init_rw;
+                default: ;
+            endcase
         end
     end
 
     always_comb begin
-        unique case (arb_sel)
+        unique case (active_init)
             INIT_1: current_bus_rw = init1_bus_init_rw;
             INIT_2: current_bus_rw = init2_bus_init_rw;
             default: current_bus_rw = last_bus_rw;
@@ -355,22 +393,40 @@ module bus(
             split_owner <= INIT_NONE;
         end else begin
             if (split_port_bus_split_ack) begin
-                if (arb_sel == INIT_1 || arb_sel == INIT_2)
-                    split_owner <= arb_sel;
-            end
-
-            if (grant_split && split_port_bus_target_ack)
+                if (active_init != INIT_NONE)
+                    split_owner <= active_init;
+                else if (grant_i1)
+                    split_owner <= INIT_1;
+                else if (grant_i2)
+                    split_owner <= INIT_2;
+            end else if (split_port_bus_target_ack && !target3_select_hold) begin
                 split_owner <= INIT_NONE;
+            end
         end
     end
 
-    // Backward path selection based on decoder outputs.
+    assign split_route_active = (split_owner != INIT_NONE) &&
+                                 (target3_select_hold || split_port_bus_data_out_valid || split_port_bus_target_ack);
+
+    // Determine which target currently owns the return path.
+    always_comb begin
+        if (target3_select_hold)
+            response_sel = 2'b10;
+        else if (target2_select_hold)
+            response_sel = 2'b01;
+        else if (target1_select_hold)
+            response_sel = 2'b00;
+        else
+            response_sel = 2'b00;
+    end
+
+    // Backward path selection based on latched decoder outputs.
     always_comb begin
         response_data  = 1'b0;
         response_valid = 1'b0;
         response_ack   = 1'b0;
 
-        unique case (decoder_sel)
+        unique case (response_sel)
             2'b10: begin
                 response_data  = split_port_bus_data_out;
                 response_valid = split_port_bus_data_out_valid;
@@ -401,18 +457,22 @@ module bus(
         init2_target_ack_int     = 1'b0;
         init2_target_split_int   = 1'b0;
 
-        if (grant_split) begin
-            if (split_owner == INIT_1) begin
-                init1_bus_data_in       = split_port_bus_data_out;
-                init1_bus_data_in_valid = split_port_bus_data_out_valid;
-                init1_target_ack_int    = split_port_bus_target_ack;
-            end else if (split_owner == INIT_2) begin
-                init2_bus_data_in       = split_port_bus_data_out;
-                init2_bus_data_in_valid = split_port_bus_data_out_valid;
-                init2_target_ack_int    = split_port_bus_target_ack;
-            end
+        if (split_route_active) begin
+            case (split_owner)
+                INIT_1: begin
+                    init1_bus_data_in       = split_port_bus_data_out;
+                    init1_bus_data_in_valid = split_port_bus_data_out_valid;
+                    init1_target_ack_int    = split_port_bus_target_ack;
+                end
+                INIT_2: begin
+                    init2_bus_data_in       = split_port_bus_data_out;
+                    init2_bus_data_in_valid = split_port_bus_data_out_valid;
+                    init2_target_ack_int    = split_port_bus_target_ack;
+                end
+                default: ;
+            endcase
         end else begin
-            unique case (arb_sel)
+            case (active_init)
                 INIT_1: begin
                     init1_bus_data_in       = response_data;
                     init1_bus_data_in_valid = response_valid;
@@ -428,10 +488,16 @@ module bus(
         end
 
         if (split_port_bus_split_ack) begin
-            if (arb_sel == INIT_1)
-                init1_target_split_int = 1'b1;
-            else if (arb_sel == INIT_2)
-                init2_target_split_int = 1'b1;
+            case (active_init)
+                INIT_1: init1_target_split_int = 1'b1;
+                INIT_2: init2_target_split_int = 1'b1;
+                default: begin
+                    if (split_owner == INIT_1)
+                        init1_target_split_int = 1'b1;
+                    else if (split_owner == INIT_2)
+                        init2_target_split_int = 1'b1;
+                end
+            endcase
         end
     end
 
