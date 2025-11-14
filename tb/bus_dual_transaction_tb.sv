@@ -323,6 +323,17 @@ module bus_dual_transaction_tb;
 
         reset_dut();
 
+        // Optional simultaneous request (both initiators)
+        // To enable, assert init1_trigger and init2_trigger on the same clock edge
+        // @(posedge clk);
+        // init1_trigger <= 1'b1;
+        // init2_trigger <= 1'b1;
+        // @(posedge clk);
+        // init1_trigger <= 1'b0;
+        // init2_trigger <= 1'b0;
+        // wait (init1_done);
+        // wait (init2_done);
+
         // Transaction 1: initiator 2 to target 1
         @(posedge clk);
         init2_trigger <= 1'b1;
