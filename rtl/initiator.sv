@@ -31,7 +31,9 @@ logic [7:0] init_data_out_r;
 logic init_data_out_valid_r;
 logic init_rw_r;
 logic done_r;
-logic [7:0] write_mem;
+// logic [7:0] write_mem;
+logic [7:0] write_mem [0:3];
+logic [1:0] write_ptr;
 logic [7:0] read_mem;
 logic addr_sent;
 logic data_sent;
@@ -68,7 +70,11 @@ always_ff @(posedge clk or negedge rst_n) begin
         init_data_out_r <= '0;
         init_data_out_valid_r <= 1'b0;
         init_rw_r <= 1'b1;
-        write_mem <= MEM_INIT_DATA;
+        // write_mem <= MEM_INIT_DATA;
+        for (int i = 0; i < 4; i++) begin
+            write_mem[i] <= MEM_INIT_DATA + i[7:0];
+        end
+        write_ptr <= 2'd0;
         read_mem <= 8'h00;
         addr_sent <= 1'b0;
         data_sent <= 1'b0;
@@ -106,7 +112,8 @@ always_ff @(posedge clk or negedge rst_n) begin
                 end
 
                 if (!data_sent) begin
-                    init_data_out_r <= write_mem;
+                    // init_data_out_r <= write_mem;
+                    init_data_out_r <= write_mem[write_ptr];
                     init_data_out_valid_r <= 1'b1;
                 end else begin
                     init_data_out_valid_r <= 1'b0;
@@ -192,6 +199,10 @@ always_ff @(posedge clk or negedge rst_n) begin
 
                 if (init_data_in_valid && (!split_active || init_ack || split_resume_ack)) begin
                     read_mem <= init_data_in;
+                    if (write_ptr == 2'd3)
+                        write_ptr <= 2'd0;
+                    else
+                        write_ptr <= write_ptr + 2'd1;
                     done_r <= 1'b1;
                     split_active <= 1'b0;
                     split_resume_ack <= 1'b0;

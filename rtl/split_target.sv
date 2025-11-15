@@ -19,12 +19,15 @@ module split_target #(
 );
 
     localparam int ADDR_WIDTH = (INTERNAL_ADDR_BITS > 0) ? INTERNAL_ADDR_BITS : 1;
-    localparam int MEM_DEPTH = 1 << ADDR_WIDTH;
+    // localparam int MEM_DEPTH = 1 << ADDR_WIDTH;
+    localparam int MEM_DEPTH = 16;
     localparam int LATENCY_WIDTH = (READ_LATENCY > 0) ? $clog2(READ_LATENCY + 1) : 1;
 
-    logic [7:0] mem [0:MEM_DEPTH-1];
+    // logic [7:0] mem [0:MEM_DEPTH-1];
+    logic [7:0] mem [0:15];
     logic [15:0] pending_addr;
-    logic [ADDR_WIDTH-1:0] addr_index;
+    // logic [ADDR_WIDTH-1:0] addr_index;
+    logic [3:0] addr_index;
     logic [LATENCY_WIDTH-1:0] latency_cnt;
 
     typedef enum logic [2:0] {
@@ -38,7 +41,8 @@ module split_target #(
     state_t state;
 
     assign target_ready = 1'b1;
-    assign addr_index = pending_addr[ADDR_WIDTH-1:0];
+    // assign addr_index = pending_addr[ADDR_WIDTH-1:0];
+    assign addr_index = pending_addr[3:0];
 
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
@@ -62,7 +66,8 @@ module split_target #(
                         pending_addr <= target_addr_in;
                         if (target_rw) begin
                             if (target_data_in_valid) begin
-                                mem[target_addr_in[ADDR_WIDTH-1:0]] <= target_data_in;
+                                // mem[target_addr_in[ADDR_WIDTH-1:0]] <= target_data_in;
+                                mem[target_addr_in[3:0]] <= target_data_in;
                                 target_ack <= 1'b1;
                                 state <= ST_IDLE;
                             end else begin
@@ -82,7 +87,8 @@ module split_target #(
 
                 ST_WAIT_WRITE_DATA: begin
                     if (target_data_in_valid) begin
-                        mem[pending_addr[ADDR_WIDTH-1:0]] <= target_data_in;
+                        // mem[pending_addr[ADDR_WIDTH-1:0]] <= target_data_in;
+                        mem[pending_addr[3:0]] <= target_data_in;
                         target_ack <= 1'b1;
                         state <= ST_IDLE;
                     end
