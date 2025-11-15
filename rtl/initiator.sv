@@ -214,6 +214,11 @@ always_ff @(posedge clk or negedge rst_n) begin
                 init_addr_out_valid_r <= 1'b0;
                 init_data_out_valid_r <= 1'b0;
                 init_rw_r <= 1'b0;
+                done_r <= 1'b1;
+                if (!trigger) begin
+                    done_r <= 1'b0;
+                    state <= S_IDLE;
+                end
             end
             default: state <= S_IDLE;
         endcase
