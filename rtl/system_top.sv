@@ -37,8 +37,14 @@ module system_top (
     assign init1_trigger_pulse = trigger_sync_ff2 & ~trigger_sync_prev;
 
     // Local parameters describing address map expectations.
-    localparam bit [15:0] TARGET2_ADDR = 16'h4004;
-    localparam bit [15:0] TARGET3_ADDR = 16'h8004;
+    localparam bit [15:0] TARGET1_BASE_ADDR = 16'h0000;
+    localparam int unsigned TARGET1_SIZE = 16'd2048;
+    localparam bit [15:0] TARGET2_BASE_ADDR = 16'h4000;
+    localparam int unsigned TARGET2_SIZE = 16'd4096;
+    localparam bit [15:0] TARGET3_BASE_ADDR = 16'h8000;
+    localparam int unsigned TARGET3_SIZE = 16'd4096;
+    localparam bit [15:0] TARGET2_ADDR = TARGET2_BASE_ADDR + 16'h0004;
+    localparam bit [15:0] TARGET3_ADDR = TARGET3_BASE_ADDR + 16'h0004;
     localparam bit [7:0]  TARGET3_INIT_WRITE = 8'hA5;
     localparam bit [7:0]  TARGET2_INIT_WRITE = 8'h5A;
 
@@ -213,7 +219,14 @@ module system_top (
     );
 
     // Bus interconnect.
-    bus u_bus (
+    bus #(
+        .TARGET1_BASE(TARGET1_BASE_ADDR),
+        .TARGET1_SIZE(TARGET1_SIZE),
+        .TARGET2_BASE(TARGET2_BASE_ADDR),
+        .TARGET2_SIZE(TARGET2_SIZE),
+        .TARGET3_BASE(TARGET3_BASE_ADDR),
+        .TARGET3_SIZE(TARGET3_SIZE)
+    ) u_bus (
         .clk(clk),
         .rst_n(rst_n),
         // Initiator 1

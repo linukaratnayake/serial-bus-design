@@ -1,4 +1,11 @@
-module bus(
+module bus #(
+    parameter logic [15:0] TARGET1_BASE = 16'h0000,
+    parameter int unsigned TARGET1_SIZE = 16'd2048,
+    parameter logic [15:0] TARGET2_BASE = 16'h4000,
+    parameter int unsigned TARGET2_SIZE = 16'd4096,
+    parameter logic [15:0] TARGET3_BASE = 16'h8000,
+    parameter int unsigned TARGET3_SIZE = 16'd4096
+)(
     input  logic         clk,
     input  logic         rst_n,
 
@@ -308,7 +315,14 @@ module bus(
 
     assign decoder_release = {target3_decoder_release, target2_decoder_release, target1_decoder_release};
 
-    addr_decoder u_addr_decoder (
+    addr_decoder #(
+        .TARGET1_BASE(TARGET1_BASE),
+        .TARGET1_SIZE(TARGET1_SIZE),
+        .TARGET2_BASE(TARGET2_BASE),
+        .TARGET2_SIZE(TARGET2_SIZE),
+        .TARGET3_BASE(TARGET3_BASE),
+        .TARGET3_SIZE(TARGET3_SIZE)
+    ) u_addr_decoder (
         .clk(clk),
         .rst_n(rst_n),
         .bus_data_in(forward_data),
