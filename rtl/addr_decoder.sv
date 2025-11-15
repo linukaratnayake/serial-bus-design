@@ -17,8 +17,8 @@ module addr_decoder(
 
         if (addr[15:11] == 5'b00000)
             result[0] = 1'b1; // Slave 1: 0000 0xxx xxxx xxxx
-        else if (addr[15:14] == 2'b01)
-            result[1] = 1'b1; // Slave 2: 01xx xxxx xxxx xxxx
+        else if (addr[15:12] == 4'b0100)
+            result[1] = 1'b1; // Slave 2: 0100 xxxx xxxx xxxx
         else if (addr[15:12] == 4'b1000)
             result[2] = 1'b1; // Slave 3: 1000 xxxx xxxx xxxx
 
