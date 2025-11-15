@@ -36,8 +36,8 @@ module target #(
             target_ack <= 1'b0;
             pending_addr_idx <= '0;
             pending_write <= 1'b0;
+            last_write_value <= '0;
         end else begin
-            last_write_value <= '0';
             target_data_out_valid <= 1'b0;
             target_ack <= 1'b0;
 
@@ -46,8 +46,8 @@ module target #(
                 mem[pending_addr_idx] <= target_data_in;
                 target_ack <= 1'b1;
                 pending_write <= 1'b0;
-            end
                 last_write_value <= target_data_in;
+            end
 
             if (target_addr_in_valid) begin
                 // pending_addr_idx <= target_addr_in[ADDR_WIDTH-1:0];
@@ -59,8 +59,8 @@ module target #(
                         mem[target_addr_in[3:0]] <= target_data_in;
                         target_ack <= 1'b1;
                         pending_write <= 1'b0;
-                    end else begin
                         last_write_value <= target_data_in;
+                    end else begin
                         pending_write <= 1'b1;
                     end
                 end else begin
