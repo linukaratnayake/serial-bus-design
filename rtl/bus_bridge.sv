@@ -77,13 +77,13 @@ module bus_bridge_target_if #(
 
         if (offset < TARGET0_SIZE) begin
             valid = 1'b1;
-            mapped = BUSB_TARGET0_BASE + logic [15:0]'(offset);
+            mapped = BUSB_TARGET0_BASE + 16'(offset);
         end else if (offset < (TARGET0_SIZE + TARGET1_SIZE)) begin
             valid = 1'b1;
-            mapped = BUSB_TARGET1_BASE + logic [15:0]'(offset - TARGET0_SIZE);
+            mapped = BUSB_TARGET1_BASE + 16'(offset - TARGET0_SIZE);
         end else begin
             valid = 1'b1;
-            mapped = BUSB_TARGET2_BASE + logic [15:0]'(offset - TARGET0_SIZE - TARGET1_SIZE);
+            mapped = BUSB_TARGET2_BASE + 16'(offset - TARGET0_SIZE - TARGET1_SIZE);
         end
 
         return mapped;
