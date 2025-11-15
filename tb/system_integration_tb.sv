@@ -63,6 +63,7 @@ module system_integration_tb;
     logic target_2_valid;
     logic target_3_valid;
     logic [1:0] sel;
+    logic [2:0] decoder_release_valids;
 
     // Constants for the scenario (choose address in Slave 3 range 1000 xxxx xxxx xxxx)
     localparam bit [15:0] TARGET3_ADDR = 16'h800A;
@@ -184,11 +185,14 @@ module system_integration_tb;
         .bus_data_in(bus_serial),
         .bus_data_in_valid(bus_serial_valid),
         .bus_mode(bus_mode),
+        .release_valids(decoder_release_valids),
         .target_1_valid(target_1_valid),
         .target_2_valid(target_2_valid),
         .target_3_valid(target_3_valid),
         .sel(sel)
     );
+
+    assign decoder_release_valids = {bus_target_ack, 2'b00};
 
     // Instantiate arbiter, only request/grant 1 used
     logic arbiter_grant_i1;
