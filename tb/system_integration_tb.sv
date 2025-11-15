@@ -56,6 +56,7 @@ module system_integration_tb;
     logic target_ready;
     logic target_split_ack;
     logic target_rw_dir;
+    logic [7:0] split_target_last_write;
 
     // Address decoder outputs
     logic target_1_valid;
@@ -172,7 +173,8 @@ module system_integration_tb;
         .target_data_out_valid(target_data_out_valid),
         .target_ack(target_ack),
         .target_split_ack(target_split_ack),
-        .target_ready(target_ready)
+        .target_ready(target_ready),
+        .split_target_last_write(split_target_last_write)
     );
 
     // Instantiate address decoder observing the same bus

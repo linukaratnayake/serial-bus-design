@@ -51,6 +51,7 @@ module bus_integration_tb;
     logic         target1_data_out_valid;
     logic         target1_ack;
     logic         target1_ready;
+    logic [7:0]   target1_last_write;
 
     // Target 2 wiring
     logic [15:0]  target2_addr_in;
@@ -62,6 +63,7 @@ module bus_integration_tb;
     logic         target2_data_out_valid;
     logic         target2_ack;
     logic         target2_ready;
+    logic [7:0]   target2_last_write;
 
     // Split target wiring (target 3)
     logic [15:0]  split_target_addr_in;
@@ -76,6 +78,7 @@ module bus_integration_tb;
     logic         split_target_split_ack;
     logic         split_target_req;
     logic         split_target_grant;
+    logic [7:0]   split_target_last_write;
 
     // Instantiate initiators
     initiator #(
@@ -134,7 +137,8 @@ module bus_integration_tb;
         .target_data_out(target1_data_out),
         .target_data_out_valid(target1_data_out_valid),
         .target_ack(target1_ack),
-        .target_ready(target1_ready)
+        .target_ready(target1_ready),
+        .target_last_write(target1_last_write)
     );
 
     target #(.INTERNAL_ADDR_BITS(11)) u_target_2 (
@@ -148,7 +152,8 @@ module bus_integration_tb;
         .target_data_out(target2_data_out),
         .target_data_out_valid(target2_data_out_valid),
         .target_ack(target2_ack),
-        .target_ready(target2_ready)
+        .target_ready(target2_ready),
+        .target_last_write(target2_last_write)
     );
 
     split_target #(
@@ -168,7 +173,8 @@ module bus_integration_tb;
         .target_data_out_valid(split_target_data_out_valid),
         .target_ack(split_target_ack),
         .target_split_ack(split_target_split_ack),
-        .target_ready(split_target_ready)
+        .target_ready(split_target_ready),
+        .split_target_last_write(split_target_last_write)
     );
 
     // Device under test

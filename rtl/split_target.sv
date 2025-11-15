@@ -15,7 +15,8 @@ module split_target #(
     output logic target_data_out_valid,
     output logic target_ack,
     output logic target_split_ack,
-    output logic target_ready
+    output logic target_ready,
+    output logic [7:0] split_target_last_write
 );
 
     localparam int ADDR_WIDTH = (INTERNAL_ADDR_BITS > 0) ? INTERNAL_ADDR_BITS : 1;
@@ -29,6 +30,7 @@ module split_target #(
     // logic [ADDR_WIDTH-1:0] addr_index;
     logic [3:0] addr_index;
     logic [LATENCY_WIDTH-1:0] latency_cnt;
+    logic [7:0] last_write_value;
 
     typedef enum logic [2:0] {
         ST_IDLE,
@@ -41,6 +43,7 @@ module split_target #(
     state_t state;
 
     assign target_ready = 1'b1;
+    assign split_target_last_write = last_write_value;
     // assign addr_index = pending_addr[ADDR_WIDTH-1:0];
     assign addr_index = pending_addr[3:0];
 
@@ -51,6 +54,7 @@ module split_target #(
             target_data_out_valid <= 1'b0;
             target_ack <= 1'b0;
             target_split_ack <= 1'b0;
+            last_write_value <= '0;
             pending_addr <= '0;
             latency_cnt <= '0;
             state <= ST_IDLE;
@@ -69,6 +73,7 @@ module split_target #(
                                 // mem[target_addr_in[ADDR_WIDTH-1:0]] <= target_data_in;
                                 mem[target_addr_in[3:0]] <= target_data_in;
                                 target_ack <= 1'b1;
+                                last_write_value <= target_data_in;
                                 state <= ST_IDLE;
                             end else begin
                                 state <= ST_WAIT_WRITE_DATA;
@@ -90,6 +95,7 @@ module split_target #(
                         // mem[pending_addr[ADDR_WIDTH-1:0]] <= target_data_in;
                         mem[pending_addr[3:0]] <= target_data_in;
                         target_ack <= 1'b1;
+                        last_write_value <= target_data_in;
                         state <= ST_IDLE;
                     end
                 end

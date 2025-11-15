@@ -40,6 +40,7 @@ module bus_dual_transaction_tb;
     logic         init2_data_in_valid;
     logic         init2_ack;
     logic         init2_split_ack;
+    logic [7:0]   target1_last_write;
 
     // Target 1 wiring
     logic [15:0]  target1_addr_in;
@@ -50,6 +51,7 @@ module bus_dual_transaction_tb;
     logic [7:0]   target1_data_out;
     logic         target1_data_out_valid;
     logic         target1_ack;
+    logic [7:0]   target2_last_write;
     logic         target1_ready;
 
     // Target 2 wiring
@@ -63,6 +65,7 @@ module bus_dual_transaction_tb;
     logic         target2_ack;
     logic         target2_ready;
 
+    logic [7:0] split_target_last_write;
     // Split target wiring (kept idle)
     logic [15:0]  split_target_addr_in;
     logic         split_target_addr_in_valid;
@@ -138,7 +141,8 @@ module bus_dual_transaction_tb;
         .target_data_out(target1_data_out),
         .target_data_out_valid(target1_data_out_valid),
         .target_ack(target1_ack),
-        .target_ready(target1_ready)
+        .target_ready(target1_ready),
+        .target_last_write(target1_last_write)
     );
 
     target #(.INTERNAL_ADDR_BITS(11)) u_target_2 (
@@ -152,7 +156,8 @@ module bus_dual_transaction_tb;
         .target_data_out(target2_data_out),
         .target_data_out_valid(target2_data_out_valid),
         .target_ack(target2_ack),
-        .target_ready(target2_ready)
+        .target_ready(target2_ready),
+        .target_last_write(target2_last_write)
     );
 
     split_target #(
@@ -172,7 +177,8 @@ module bus_dual_transaction_tb;
         .target_data_out_valid(split_target_data_out_valid),
         .target_ack(split_target_ack),
         .target_split_ack(split_target_split_ack),
-        .target_ready(split_target_ready)
+        .target_ready(split_target_ready),
+        .split_target_last_write(split_target_last_write)
     );
 
     // Device under test

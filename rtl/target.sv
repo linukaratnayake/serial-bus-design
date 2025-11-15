@@ -11,7 +11,8 @@ module target #(
     output logic [7:0] target_data_out,
     output logic target_data_out_valid,
     output logic target_ack,
-    output logic target_ready
+    output logic target_ready,
+    output logic [7:0] target_last_write
 );
 
     localparam int ADDR_WIDTH = (INTERNAL_ADDR_BITS > 0) ? INTERNAL_ADDR_BITS : 1;
@@ -24,8 +25,10 @@ module target #(
     logic [3:0] pending_addr_idx;
     logic pending_write;
 
+    logic [7:0] last_write_value;
     assign target_ready = 1'b1;
 
+    assign target_last_write = last_write_value;
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             target_data_out <= '0;
@@ -34,6 +37,7 @@ module target #(
             pending_addr_idx <= '0;
             pending_write <= 1'b0;
         end else begin
+            last_write_value <= '0';
             target_data_out_valid <= 1'b0;
             target_ack <= 1'b0;
 
@@ -43,6 +47,7 @@ module target #(
                 target_ack <= 1'b1;
                 pending_write <= 1'b0;
             end
+                last_write_value <= target_data_in;
 
             if (target_addr_in_valid) begin
                 // pending_addr_idx <= target_addr_in[ADDR_WIDTH-1:0];
@@ -55,6 +60,7 @@ module target #(
                         target_ack <= 1'b1;
                         pending_write <= 1'b0;
                     end else begin
+                        last_write_value <= target_data_in;
                         pending_write <= 1'b1;
                     end
                 end else begin

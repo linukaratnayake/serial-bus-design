@@ -13,6 +13,7 @@ module target_integration_tb;
     logic target_rw;
     logic target_ready;
     logic target_ack;
+    logic [7:0] target_last_write;
 
     logic bus_data_in;
     logic bus_data_in_valid;
@@ -45,7 +46,8 @@ module target_integration_tb;
         .target_data_out(target_data_out),
         .target_data_out_valid(target_data_out_valid),
         .target_ack(target_ack),
-        .target_ready(target_ready)
+        .target_ready(target_ready),
+        .target_last_write(target_last_write)
     );
 
     target_port u_target_port (
