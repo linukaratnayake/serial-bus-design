@@ -55,6 +55,7 @@ module bus_bridge_target_if #(
     logic [15:0] current_addr_b;
     logic [7:0] current_write_data;
     logic current_is_write;
+    logic current_uses_split_path;
     logic [7:0] pending_read_data;
     logic [7:0] inflight_write_data;
     bus_bridge_req_t request_buffer;
@@ -106,6 +107,7 @@ module bus_bridge_target_if #(
             current_addr_b <= '0;
             current_write_data <= '0;
             current_is_write <= 1'b0;
+            current_uses_split_path <= 1'b0;
             pending_read_data <= '0;
             inflight_write_data <= '0;
             request_buffer <= '0;
@@ -120,11 +122,19 @@ module bus_bridge_target_if #(
                     if (target_addr_in_valid) begin
                         logic mapped_valid;
                         logic [15:0] mapped_addr;
+                        int unsigned offset;
+                        logic uses_split_now;
 
                         mapped_addr = map_to_bus_b(target_addr_in, mapped_valid);
                         current_addr_b <= mapped_addr;
                         current_is_write <= target_rw;
                         current_write_data <= target_data_in;
+                        offset = 0;
+                        if (mapped_valid && (target_addr_in >= BRIDGE_BASE_ADDR))
+                            offset = int'(target_addr_in) - int'(BRIDGE_BASE_ADDR);
+                        uses_split_now = mapped_valid && (offset < TARGET0_SIZE);
+                        current_uses_split_path <= uses_split_now;
+
                         target_split_ack <= 1'b1;
 
                         if (!mapped_valid) begin
@@ -167,10 +177,16 @@ module bus_bridge_target_if #(
                             target_ack <= 1'b1;
                             split_target_last_write <= inflight_write_data;
                             state <= TGT_IDLE;
-                        end else begin
+                        end else if (current_uses_split_path) begin
                             pending_read_data <= resp_payload.read_data;
                             split_req <= 1'b1;
                             state <= TGT_WAIT_READ_GRANT;
+                        end else begin
+                            target_data_out <= resp_payload.read_data;
+                            target_data_out_valid <= 1'b1;
+                            target_ack <= 1'b1;
+                            split_req <= 1'b0;
+                            state <= TGT_IDLE;
                         end
                     end
                 end
