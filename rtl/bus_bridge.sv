@@ -153,7 +153,7 @@ module bus_bridge_target_if #(
                     request_buffer.write_data <= current_write_data;
                     req_valid <= 1'b1;
 
-                    if (req_ready) begin
+                    if (req_valid && req_ready) begin
                         req_valid <= 1'b0;
                         inflight_write_data <= current_write_data;
                         state <= TGT_WAIT_RESPONSE;
@@ -235,6 +235,7 @@ module bus_bridge_initiator_if(
     logic [7:0] read_data_buffer;
     logic read_data_valid;
     logic resp_valid_reg;
+    logic pending_read_ack;
 
     assign req_ready = (state == BI_IDLE);
     assign init_addr_out = active_req.addr;
@@ -261,6 +262,7 @@ module bus_bridge_initiator_if(
             read_data_buffer <= '0;
             read_data_valid <= 1'b0;
             resp_valid_reg <= 1'b0;
+            pending_read_ack <= 1'b0;
         end else begin
             if (init_data_in_valid) begin
                 read_data_buffer <= init_data_in;
@@ -274,6 +276,7 @@ module bus_bridge_initiator_if(
                     init_data_valid_reg <= 1'b0;
                     resp_valid_reg <= 1'b0;
                     read_data_valid <= 1'b0;
+                    pending_read_ack <= 1'b0;
                     addr_captured <= 1'b0;
                     data_captured <= 1'b0;
                     if (req_valid) begin
@@ -310,9 +313,25 @@ module bus_bridge_initiator_if(
 
                     if (init_ack) begin
                         init_req_reg <= 1'b0;
-                        response_buffer.is_write <= active_req.is_write;
-                        response_buffer.read_data <= read_data_valid ? read_data_buffer : 8'h00;
+                        if (active_req.is_write || read_data_valid) begin
+                            response_buffer.is_write <= active_req.is_write;
+                            response_buffer.read_data <= active_req.is_write ? 8'h00 : read_data_buffer;
+                            resp_valid_reg <= 1'b1;
+                            pending_read_ack <= 1'b0;
+                            if (!active_req.is_write)
+                                read_data_valid <= 1'b0;
+                            state <= BI_RESP_HOLD;
+                        end else begin
+                            pending_read_ack <= 1'b1;
+                        end
+                    end
+
+                    if (!active_req.is_write && pending_read_ack && read_data_valid) begin
+                        response_buffer.is_write <= 1'b0;
+                        response_buffer.read_data <= read_data_buffer;
                         resp_valid_reg <= 1'b1;
+                        pending_read_ack <= 1'b0;
+                        read_data_valid <= 1'b0;
                         state <= BI_RESP_HOLD;
                     end
                 end

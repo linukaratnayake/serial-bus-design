@@ -42,8 +42,8 @@ module system_top_with_bus_bridge (
     localparam bit [7:0]  TARGET3_INIT_WRITE = 8'hA5;
     localparam bit [7:0]  TARGET2_INIT_WRITE = 8'h5A;
     localparam bit [15:0] BRIDGE_BASE_ADDR = 16'h8000;
-    localparam int unsigned BRIDGE_TARGET0_SIZE = 16'd2048;
-    localparam int unsigned BRIDGE_TARGET1_SIZE = 16'd4096;
+    localparam int unsigned BRIDGE_TARGET0_SIZE = 16'd4096;
+    localparam int unsigned BRIDGE_TARGET1_SIZE = 16'd2048;
     localparam int unsigned BRIDGE_TARGET2_SIZE = 16'd4096;
     localparam int unsigned BRIDGE_ADDR_SPACE = BRIDGE_TARGET0_SIZE + BRIDGE_TARGET1_SIZE + BRIDGE_TARGET2_SIZE;
 
@@ -256,7 +256,10 @@ module system_top_with_bus_bridge (
         .BRIDGE_BASE_ADDR(BRIDGE_BASE_ADDR),
         .TARGET0_SIZE(BRIDGE_TARGET0_SIZE),
         .TARGET1_SIZE(BRIDGE_TARGET1_SIZE),
-        .TARGET2_SIZE(BRIDGE_TARGET2_SIZE)
+        .TARGET2_SIZE(BRIDGE_TARGET2_SIZE),
+        .BUSB_TARGET0_BASE(16'h8000),
+        .BUSB_TARGET1_BASE(16'h0000),
+        .BUSB_TARGET2_BASE(16'h4000)
     ) u_bus_bridge (
         .clk(clk),
         .rst_n(rst_n),
