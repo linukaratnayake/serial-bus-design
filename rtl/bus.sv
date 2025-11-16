@@ -143,6 +143,9 @@ module bus #(
     init_sel_t  target2_owner;
     init_sel_t  target3_owner;
     init_sel_t  response_owner;
+        init_sel_t target1_owner_eff;
+        init_sel_t target2_owner_eff;
+        init_sel_t target3_owner_eff;
     logic       target1_expect_data;
     logic       target1_data_seen;
     logic       target2_expect_data;
@@ -551,6 +554,25 @@ module bus #(
                                  (target3_select_hold || split_port_bus_data_out_valid || split_port_bus_target_ack);
 
     // Determine which target currently owns the return path.
+        always_comb begin
+            // Fall back to the currently active initiator when the owner register has not
+            // latched yet, so first-cycle responses are not dropped.
+            target1_owner_eff = target1_owner;
+            if ((target1_owner_eff == INIT_NONE) && (active_init != INIT_NONE) &&
+                (target1_select_hold || target1_valid))
+                target1_owner_eff = active_init;
+
+            target2_owner_eff = target2_owner;
+            if ((target2_owner_eff == INIT_NONE) && (active_init != INIT_NONE) &&
+                (target2_select_hold || target2_valid))
+                target2_owner_eff = active_init;
+
+            target3_owner_eff = target3_owner;
+            if ((target3_owner_eff == INIT_NONE) && (active_init != INIT_NONE) &&
+                (target3_select_hold || target3_valid))
+                target3_owner_eff = active_init;
+        end
+
     always_comb begin
         if (split_route_active)
             response_sel = 2'b10;
@@ -569,9 +591,9 @@ module bus #(
             response_owner = split_owner;
         end else begin
             unique case (response_sel)
-                2'b10: response_owner = target3_owner;
-                2'b01: response_owner = target2_owner;
-                default: response_owner = target1_owner;
+                    2'b10: response_owner = target3_owner_eff;
+                    2'b01: response_owner = target2_owner_eff;
+                    default: response_owner = target1_owner_eff;
             endcase
         end
     end
