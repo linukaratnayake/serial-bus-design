@@ -38,14 +38,10 @@ module bus_bridge #(
     input  logic init_split_ack
 );
 
-    bus_bridge_req_t bridge_req_payload;
-    bus_bridge_resp_t bridge_resp_payload;
-    logic bridge_req_valid;
-    logic bridge_req_ready;
-    logic bridge_resp_valid;
-    logic bridge_resp_ready;
+    logic uart_req_serial;
+    logic uart_resp_serial;
 
-    bus_bridge_target_if #(
+    bus_bridge_target_uart_wrapper #(
         .BRIDGE_BASE_ADDR(BRIDGE_BASE_ADDR),
         .TARGET0_SIZE(TARGET0_SIZE),
         .TARGET1_SIZE(TARGET1_SIZE),
@@ -69,23 +65,15 @@ module bus_bridge #(
         .target_split_ack(target_split_ack),
         .target_ready(target_ready),
         .split_target_last_write(split_target_last_write),
-        .req_valid(bridge_req_valid),
-        .req_ready(bridge_req_ready),
-        .req_payload(bridge_req_payload),
-        .resp_valid(bridge_resp_valid),
-        .resp_ready(bridge_resp_ready),
-        .resp_payload(bridge_resp_payload)
+        .uart_tx(uart_req_serial),
+        .uart_rx(uart_resp_serial)
     );
 
-    bus_bridge_initiator_if u_bridge_initiator (
+    bus_bridge_initiator_uart_wrapper u_bridge_initiator (
         .clk(clk),
         .rst_n(rst_n),
-        .req_valid(bridge_req_valid),
-        .req_ready(bridge_req_ready),
-        .req_payload(bridge_req_payload),
-        .resp_valid(bridge_resp_valid),
-        .resp_ready(bridge_resp_ready),
-        .resp_payload(bridge_resp_payload),
+        .uart_rx(uart_req_serial),
+        .uart_tx(uart_resp_serial),
         .init_req(init_req),
         .init_addr_out(init_addr_out),
         .init_addr_out_valid(init_addr_out_valid),
