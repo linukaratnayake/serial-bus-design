@@ -1,13 +1,4 @@
-typedef struct packed {
-    logic        is_write;
-    logic [15:0] addr;
-    logic [7:0]  write_data;
-} bus_bridge_req_t;
-
-typedef struct packed {
-    logic        is_write;
-    logic [7:0]  read_data;
-} bus_bridge_resp_t;
+import bus_bridge_pkg::*;
 
 module bus_bridge_target_if #(
     parameter logic [15:0] BRIDGE_BASE_ADDR = 16'h8000,
