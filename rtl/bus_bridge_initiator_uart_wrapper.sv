@@ -68,11 +68,14 @@ module bus_bridge_initiator_uart_wrapper (
     logic uart_ready_clr;
     logic [7:0] uart_data_out;
     logic uart_tx_busy_d;
+    logic uart_ready_q;
 
     assign req_valid_if = req_valid_reg;
     assign req_payload_if = req_pending;
 
-    uart u_initiator_uart (
+    uart #(
+        .DATA_BITS(8)
+    ) u_initiator_uart (
         .data_in(uart_data_in),
         .wr_en(uart_wr_en),
         .clear(1'b0),
@@ -92,6 +95,15 @@ module bus_bridge_initiator_uart_wrapper (
             uart_tx_busy_d <= uart_tx_busy;
     end
 
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n)
+            uart_ready_q <= 1'b0;
+        else
+            uart_ready_q <= uart_ready;
+    end
+
+    wire uart_ready_pulse = uart_ready && !uart_ready_q;
+
     wire uart_tx_done = uart_tx_busy_d && !uart_tx_busy;
 
     always_ff @(posedge clk or negedge rst_n) begin
@@ -108,7 +120,7 @@ module bus_bridge_initiator_uart_wrapper (
 
             case (req_rx_state)
                 REQ_RX_IDLE: begin
-                    if (!req_valid_reg && uart_ready) begin
+                    if (!req_valid_reg && uart_ready_pulse) begin
                         req_pending.addr[7:0] <= uart_data_out; // byte0: address LSB
                         uart_ready_clr <= 1'b1;
                         req_rx_state <= REQ_RX_WAIT_ADDR_H;
@@ -116,7 +128,7 @@ module bus_bridge_initiator_uart_wrapper (
                 end
 
                 REQ_RX_WAIT_ADDR_H: begin
-                    if (uart_ready) begin
+                    if (uart_ready_pulse) begin
                         req_pending.addr[15:8] <= uart_data_out; // byte1: address MSB
                         uart_ready_clr <= 1'b1;
                         req_rx_state <= REQ_RX_WAIT_DATA;
@@ -124,7 +136,7 @@ module bus_bridge_initiator_uart_wrapper (
                 end
 
                 REQ_RX_WAIT_DATA: begin
-                    if (uart_ready) begin
+                    if (uart_ready_pulse) begin
                         req_pending.write_data <= uart_data_out; // byte2: write data
                         uart_ready_clr <= 1'b1;
                         req_rx_state <= REQ_RX_WAIT_FLAGS;
@@ -132,7 +144,7 @@ module bus_bridge_initiator_uart_wrapper (
                 end
 
                 REQ_RX_WAIT_FLAGS: begin
-                    if (uart_ready) begin
+                    if (uart_ready_pulse) begin
                         req_pending.is_write <= uart_data_out[0]; // byte3 bit0: is_write
                         req_valid_reg <= 1'b1;
                         uart_ready_clr <= 1'b1;

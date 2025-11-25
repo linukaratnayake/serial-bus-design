@@ -90,12 +90,15 @@ module bus_bridge_target_uart_wrapper #(
     logic uart_tx_busy_d;
     logic resp_valid_reg;
     bus_bridge_resp_t resp_pending;
+    logic uart_ready_q;
 
     assign req_ready_if = (req_tx_state == REQ_TX_IDLE);
     assign resp_valid_if = resp_valid_reg;
     assign resp_payload_if = resp_pending;
 
-    uart u_target_uart (
+    uart #(
+        .DATA_BITS(8)
+    ) u_target_uart (
         .data_in(uart_data_in),
         .wr_en(uart_wr_en),
         .clear(1'b0),
@@ -114,6 +117,15 @@ module bus_bridge_target_uart_wrapper #(
         else
             uart_tx_busy_d <= uart_tx_busy;
     end
+
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n)
+            uart_ready_q <= 1'b0;
+        else
+            uart_ready_q <= uart_ready;
+    end
+
+    wire uart_ready_pulse = uart_ready && !uart_ready_q;
 
     wire uart_tx_done = uart_tx_busy_d && !uart_tx_busy;
 
@@ -212,7 +224,7 @@ module bus_bridge_target_uart_wrapper #(
 
             case (resp_rx_state)
                 RESP_RX_IDLE: begin
-                    if (uart_ready) begin
+                    if (uart_ready_pulse) begin
                         resp_read_byte <= uart_data_out;
                         uart_ready_clr <= 1'b1;
                         resp_rx_state <= RESP_RX_WAIT_FLAGS;
@@ -220,7 +232,7 @@ module bus_bridge_target_uart_wrapper #(
                 end
 
                 RESP_RX_WAIT_FLAGS: begin
-                    if (uart_ready) begin
+                    if (uart_ready_pulse) begin
                         resp_pending.read_data <= resp_read_byte; // byte0 captured earlier
                         resp_pending.is_write <= uart_data_out[0]; // byte1 bit0
                         resp_valid_reg <= 1'b1;
