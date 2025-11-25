@@ -61,6 +61,12 @@ assign init_rw = init_rw_r;
 assign done = done_r;
 assign read_data_value = read_mem;
 
+initial begin
+    for (int i = 0; i < 4; i++) begin
+        write_mem[i] <= MEM_INIT_DATA + i[7:0];
+    end
+end
+
 always_ff @(posedge clk or negedge rst_n) begin
     if (!rst_n) begin
         state <= S_IDLE;
@@ -70,10 +76,6 @@ always_ff @(posedge clk or negedge rst_n) begin
         init_data_out_r <= '0;
         init_data_out_valid_r <= 1'b0;
         init_rw_r <= 1'b1;
-        // write_mem <= MEM_INIT_DATA;
-        for (int i = 0; i < 4; i++) begin
-            write_mem[i] <= MEM_INIT_DATA + i[7:0];
-        end
         write_ptr <= 2'd0;
         read_mem <= 8'h00;
         addr_sent <= 1'b0;
