@@ -13,9 +13,10 @@ begin
 end
 
 // Define the 3 states using 00,01,10 signals
-parameter RX_STATE_START	= 2'b00;
-parameter RX_STATE_DATA		= 2'b01;
-parameter RX_STATE_STOP		= 2'b10;
+parameter RX_STATE_START		= 2'b00;
+parameter RX_STATE_DATA			= 2'b01;
+parameter RX_STATE_STOP			= 2'b10;
+parameter RX_STATE_READY_CLEAR 	= 2'b11;
 
 localparam BIT_INDEX_WIDTH = (DATA_BITS > 1) ? $clog2(DATA_BITS) : 1;
 localparam BIT_COUNT_WIDTH = BIT_INDEX_WIDTH + 1;
@@ -74,7 +75,7 @@ begin
 			 */
 			if (sample == 15 || (sample >= 8 && !Rx)) 
 			begin
-				state <= RX_STATE_START;
+				state <= RX_STATE_READY_CLEAR;
 				data <= scratch;
 				ready <= 1'b1;
 				sample <= 0;
@@ -85,7 +86,11 @@ begin
 			end
 		end
 		
-		
+		RX_STATE_READY_CLEAR:
+		begin
+			state <= RX_STATE_START;
+			ready <= 1'b0;
+		end
 		
 		default: 
 		begin
