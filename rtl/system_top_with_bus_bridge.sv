@@ -478,6 +478,6 @@ module system_top_with_bus_bridge (
     );
 
     // Drive LEDs with the most recent write observed by the split target.
-    assign leds = split_target_last_write;
+    assign leds = b_split_target_last_write;
 
 endmodule
