@@ -10,7 +10,7 @@ module system_top (
     logic reset_sync_ff1;
     logic reset_sync_ff2;
     always_ff @(posedge clk) begin
-        reset_sync_ff1 <= btn_reset;
+        reset_sync_ff1 <= ~btn_reset;
         reset_sync_ff2 <= reset_sync_ff1;
     end
 
