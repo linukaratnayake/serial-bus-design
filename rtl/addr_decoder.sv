@@ -1,4 +1,11 @@
-module addr_decoder(
+module addr_decoder #(
+    parameter logic [15:0] TARGET1_BASE = 16'h0000,
+    parameter int unsigned TARGET1_SIZE = 16'd2048,
+    parameter logic [15:0] TARGET2_BASE = 16'h4000,
+    parameter int unsigned TARGET2_SIZE = 16'd4096,
+    parameter logic [15:0] TARGET3_BASE = 16'h8000,
+    parameter int unsigned TARGET3_SIZE = 16'd4096
+)(
     input  logic        clk,
     input  logic        rst_n,
     input  logic        bus_data_in,
@@ -11,16 +18,20 @@ module addr_decoder(
     output logic [1:0]  sel
 );
 
+    localparam logic [15:0] TARGET1_LIMIT = TARGET1_BASE + 16'((TARGET1_SIZE > 0) ? (TARGET1_SIZE - 1) : 0);
+    localparam logic [15:0] TARGET2_LIMIT = TARGET2_BASE + 16'((TARGET2_SIZE > 0) ? (TARGET2_SIZE - 1) : 0);
+    localparam logic [15:0] TARGET3_LIMIT = TARGET3_BASE + 16'((TARGET3_SIZE > 0) ? (TARGET3_SIZE - 1) : 0);
+
     function automatic logic [2:0] decode_target(logic [15:0] addr);
         logic [2:0] result;
         result = 3'b000;
 
-        if (addr[15:11] == 5'b00000)
-            result[0] = 1'b1; // Slave 1: 0000 0xxx xxxx xxxx
-        else if (addr[15:12] == 4'b0100)
-            result[1] = 1'b1; // Slave 2: 0100 xxxx xxxx xxxx
-        else if (addr[15:12] == 4'b1000)
-            result[2] = 1'b1; // Slave 3: 1000 xxxx xxxx xxxx
+        if ((TARGET1_SIZE != 0) && (addr >= TARGET1_BASE) && (addr <= TARGET1_LIMIT))
+            result[0] = 1'b1;
+        if ((TARGET2_SIZE != 0) && (addr >= TARGET2_BASE) && (addr <= TARGET2_LIMIT))
+            result[1] = 1'b1;
+        if ((TARGET3_SIZE != 0) && (addr >= TARGET3_BASE) && (addr <= TARGET3_LIMIT))
+            result[2] = 1'b1;
 
         return result;
     endfunction

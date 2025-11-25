@@ -1,4 +1,11 @@
-module bus(
+module bus #(
+    parameter logic [15:0] TARGET1_BASE = 16'h0000,
+    parameter int unsigned TARGET1_SIZE = 16'd2048,
+    parameter logic [15:0] TARGET2_BASE = 16'h4000,
+    parameter int unsigned TARGET2_SIZE = 16'd4096,
+    parameter logic [15:0] TARGET3_BASE = 16'h8000,
+    parameter int unsigned TARGET3_SIZE = 16'd4096
+)(
     input  logic         clk,
     input  logic         rst_n,
 
@@ -136,6 +143,9 @@ module bus(
     init_sel_t  target2_owner;
     init_sel_t  target3_owner;
     init_sel_t  response_owner;
+        init_sel_t target1_owner_eff;
+        init_sel_t target2_owner_eff;
+        init_sel_t target3_owner_eff;
     logic       target1_expect_data;
     logic       target1_data_seen;
     logic       target2_expect_data;
@@ -308,7 +318,14 @@ module bus(
 
     assign decoder_release = {target3_decoder_release, target2_decoder_release, target1_decoder_release};
 
-    addr_decoder u_addr_decoder (
+    addr_decoder #(
+        .TARGET1_BASE(TARGET1_BASE),
+        .TARGET1_SIZE(TARGET1_SIZE),
+        .TARGET2_BASE(TARGET2_BASE),
+        .TARGET2_SIZE(TARGET2_SIZE),
+        .TARGET3_BASE(TARGET3_BASE),
+        .TARGET3_SIZE(TARGET3_SIZE)
+    ) u_addr_decoder (
         .clk(clk),
         .rst_n(rst_n),
         .bus_data_in(forward_data),
@@ -537,6 +554,25 @@ module bus(
                                  (target3_select_hold || split_port_bus_data_out_valid || split_port_bus_target_ack);
 
     // Determine which target currently owns the return path.
+        always_comb begin
+            // Fall back to the currently active initiator when the owner register has not
+            // latched yet, so first-cycle responses are not dropped.
+            target1_owner_eff = target1_owner;
+            if ((target1_owner_eff == INIT_NONE) && (active_init != INIT_NONE) &&
+                (target1_select_hold || target1_valid))
+                target1_owner_eff = active_init;
+
+            target2_owner_eff = target2_owner;
+            if ((target2_owner_eff == INIT_NONE) && (active_init != INIT_NONE) &&
+                (target2_select_hold || target2_valid))
+                target2_owner_eff = active_init;
+
+            target3_owner_eff = target3_owner;
+            if ((target3_owner_eff == INIT_NONE) && (active_init != INIT_NONE) &&
+                (target3_select_hold || target3_valid))
+                target3_owner_eff = active_init;
+        end
+
     always_comb begin
         if (split_route_active)
             response_sel = 2'b10;
@@ -555,9 +591,9 @@ module bus(
             response_owner = split_owner;
         end else begin
             unique case (response_sel)
-                2'b10: response_owner = target3_owner;
-                2'b01: response_owner = target2_owner;
-                default: response_owner = target1_owner;
+                    2'b10: response_owner = target3_owner_eff;
+                    2'b01: response_owner = target2_owner_eff;
+                    default: response_owner = target1_owner_eff;
             endcase
         end
     end
