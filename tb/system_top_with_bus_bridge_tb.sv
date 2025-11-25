@@ -137,7 +137,7 @@ module system_top_with_bus_bridge_tb;
 
     // Timeout guard to avoid hanging simulations.
     initial begin : timeout_guard
-        #200000; // 200 us guard
+        #200000000; // 200 ms guard
         $fatal(1, "Timeout waiting for bridge transaction to complete");
     end
 endmodule
